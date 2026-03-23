@@ -1025,31 +1025,6 @@ async function scanReclaimable() {
   const owner = getPublicKey();
   setReclaimStatus("Scanning empty token accounts...");
   try {
-    if (hasSolIncineratorApiKey()) {
-      const owner58 = owner.toBase58();
-      const summary = await summarizeCloseAll(owner58);
-      if (!summary?.emptyAccountCount) {
-        reclaimableAccounts = [];
-        setReclaimStatus("No reclaimable token accounts found.");
-        setReclaimTotal(0);
-        renderReclaimRows();
-        return;
-      }
-      let offset = 0;
-      const previews = [];
-      while (true) {
-        const page = await previewCloseAllPage(owner58, offset, 500);
-        previews.push(...(page?.accountPreviews || []));
-        if (!page?.truncated) break;
-        if (!Number.isFinite(page?.nextOffset)) break;
-        offset = page.nextOffset;
-      }
-      reclaimableAccounts = previews;
-      setReclaimStatus(`Found ${summary.emptyAccountCount} reclaimable accounts`);
-      setReclaimTotal(Number(summary.totalSolanaReclaimable || 0));
-      renderReclaimRows();
-      return;
-    }
     reclaimableAccounts = await withRpcRetry((conn) =>
       fetchReclaimableTokenAccounts(conn, owner)
     );
@@ -1072,7 +1047,6 @@ async function scanReclaimable() {
 async function reclaimSolRent() {
   const ok = await ensureWallet();
   if (!ok) return;
-  if (!requireIncineratorApiKey()) return;
   const owner = getPublicKey();
   const provider = getProvider();
   if (!reclaimableAccounts.length) {
@@ -1083,48 +1057,43 @@ async function reclaimSolRent() {
   let lastSig = "";
   let reclaimedLamports = 0;
   try {
-    const owner58 = owner.toBase58();
-    showCleanupToast("Building Sol Incinerator close transactions...", "info", {
+    showCleanupToast("Preparing close-account transactions...", "info", {
       noAutoDismiss: true,
     });
-    let offset = 0;
-    const serializedTransactions = [];
-    while (true) {
-      const page = await buildCloseAllPage(owner58, offset, 500);
-      serializedTransactions.push(...(page?.transactions || []));
-      closed += Number(page?.accountsClosed || 0);
-      reclaimedLamports += Number(page?.totalLamportsReclaimed || 0);
-      if (!page?.truncated) break;
-      if (!Number.isFinite(page?.nextOffset)) break;
-      offset = page.nextOffset;
-    }
-    if (!serializedTransactions.length) {
-      throw new Error("No close transactions were returned by Sol Incinerator.");
-    }
-    const signedTxs = await signDraftTransactions(
-      provider,
-      serializedTransactions.map((raw) => ({
-        tx: VersionedTransaction.deserialize(bs58.decode(raw)),
-      }))
+    const drafts = await withRpcRetry((conn) =>
+      buildReclaimDrafts(conn, owner, reclaimableAccounts)
     );
-    const relay = await relaySignedTransactionsBatch(
-      signedTxs.map((tx) => bs58.encode(tx.serialize())),
-      {
-        maxConcurrency: 4,
-        waitForConfirmation: true,
-        confirmationCommitment: "confirmed",
-        confirmationTimeoutMs: 45000,
-      }
-    );
-    const successResults = (relay?.results || []).filter((item) => item?.sent);
-    lastSig = successResults[successResults.length - 1]?.signature || "";
-    if (!successResults.length) {
-      throw new Error(
-        relay?.results?.find((item) => item?.error)?.error ||
-        "No close transactions were submitted."
+    if (!drafts.length) {
+      throw new Error("No close transactions could be prepared.");
+    }
+    const signedTxs = await signDraftTransactions(provider, drafts);
+    const failedAccounts = [];
+    for (let i = 0; i < drafts.length; i += 1) {
+      const draft = drafts[i];
+      showCleanupToast(
+        `Submitting close transactions (${i + 1}/${drafts.length})...`,
+        "info",
+        { noAutoDismiss: true }
       );
+      try {
+        const sig = await withRpcRetry((conn) =>
+          conn.sendRawTransaction(signedTxs[i].serialize(), {
+            skipPreflight: false,
+            maxRetries: 3,
+          })
+        );
+        await waitForSignatureConfirmation(sig);
+        lastSig = sig;
+        closed += draft.accounts.length;
+        reclaimedLamports += draft.accounts.reduce(
+          (sum, acc) => sum + Number(acc.lamports || 0),
+          0
+        );
+      } catch {
+        failedAccounts.push(...draft.accounts);
+      }
     }
-    reclaimableAccounts = [];
+    reclaimableAccounts = failedAccounts;
   } catch (err) {
     const msg = cleanupErrorMessage(err, "Could not close token accounts");
     hideCleanupToast();
@@ -1133,8 +1102,16 @@ async function reclaimSolRent() {
     return;
   }
   renderReclaimRows();
-  setReclaimTotal(0);
-  setReclaimStatus(`Reclaimed SOL by closing ${closed} token accounts.`);
+  const remainingLamports = reclaimableAccounts.reduce(
+    (sum, acc) => sum + Number(acc.lamports || 0),
+    0
+  );
+  setReclaimTotal(remainingLamports / LAMPORTS_PER_SOL);
+  setReclaimStatus(
+    reclaimableAccounts.length
+      ? `Closed ${closed} token accounts. ${reclaimableAccounts.length} still pending.`
+      : `Reclaimed SOL by closing ${closed} token accounts.`
+  );
   try {
     recordSiteClaim({
       wallet: owner.toBase58(),
@@ -1148,10 +1125,16 @@ async function reclaimSolRent() {
   } catch {
     /* non-fatal */
   }
-  showCleanupToast(`Closed ${closed} token accounts`, "success", {
-    linkHref: lastSig ? "https://solscan.io/tx/" + lastSig : undefined,
-    linkLabel: lastSig ? "View latest tx" : undefined,
-  });
+  showCleanupToast(
+    reclaimableAccounts.length
+      ? `Closed ${closed} token accounts. Retry to finish the rest.`
+      : `Closed ${closed} token accounts`,
+    reclaimableAccounts.length ? "info" : "success",
+    {
+      linkHref: lastSig ? "https://solscan.io/tx/" + lastSig : undefined,
+      linkLabel: lastSig ? "View latest tx" : undefined,
+    }
+  );
 }
 
 async function init() {
