@@ -3,7 +3,6 @@
     { "source": "/portfolio", "destination": "/pages/portfolio.html" },
     { "source": "/swap", "destination": "/pages/swap.html" },
     { "source": "/send", "destination": "/pages/send.html" },
-    { "source": "/bridge", "destination": "/pages/bridge.html" },
-    { "source": "/cleanup", "destination": "/pages/cleanup.html" }
+    { "source": "/bridge", "destination": "/pages/bridge.html" }
   ]
 }

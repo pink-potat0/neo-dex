@@ -156,8 +156,6 @@ body.page-send::after { left: 10vw; bottom: 8vh; transform: rotate(-8deg); }
 body.page-bridge::before { right: 10vw; top: 11rem; }
 body.page-bridge::after { left: 7vw; bottom: 14vh; transform: rotate(18deg); }
 
-body.page-cleanup::before { right: 4vw; top: 12rem; }
-body.page-cleanup::after { left: 11vw; bottom: 10vh; transform: rotate(-12deg); }
 
 @media (max-width: 767px) {
   header.fixed.top-0,
@@ -233,8 +231,7 @@ main > section {
 
 #swap-toast-host > *,
 #send-toast-host > *,
-#bridge-toast-host > *,
-#cleanup-toast-host > * {
+#bridge-toast-host > * {
   animation: neoPopIn 220ms ease both;
 }
 
@@ -279,7 +276,6 @@ main > section {
   #swap-toast-host > *,
   #send-toast-host > *,
   #bridge-toast-host > *,
-  #cleanup-toast-host > *,
   .neo-popup-backdrop-open,
   .neo-popup-backdrop-close,
   .neo-popup-panel-open,
@@ -511,7 +507,6 @@ nav.fixed.bottom-0 > a:nth-child(1) { --neo-nav-chip-bg: #ffd34f; }
 nav.fixed.bottom-0 > a:nth-child(2) { --neo-nav-chip-bg: #c98bff; }
 nav.fixed.bottom-0 > a:nth-child(3) { --neo-nav-chip-bg: #3de7d1; }
 nav.fixed.bottom-0 > a:nth-child(4) { --neo-nav-chip-bg: #ff7f8a; }
-nav.fixed.bottom-0 > a:nth-child(5) { --neo-nav-chip-bg: #8ef08f; }
 
 html.dark nav.fixed.bottom-0 a .material-symbols-outlined {
   border-color: #1a1a1a;
@@ -546,7 +541,6 @@ textarea {
   #swap-toast-host > *,
   #send-toast-host > *,
   #bridge-toast-host > *,
-  #cleanup-toast-host > *,
   .loading-pulse {
     animation: none !important;
   }

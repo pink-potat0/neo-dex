@@ -59,7 +59,6 @@ export default defineConfig({
         swap: resolve(__dirname, "pages/swap.html"),
         bridge: resolve(__dirname, "pages/bridge.html"),
         send: resolve(__dirname, "pages/send.html"),
-        cleanup: resolve(__dirname, "pages/cleanup.html"),
       },
     },
   },

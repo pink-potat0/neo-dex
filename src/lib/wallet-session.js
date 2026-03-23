@@ -1,20 +1,32 @@
-import { PublicKey } from "@solana/web3.js";
+import {
+  PublicKey,
+  Transaction,
+  VersionedTransaction,
+} from "@solana/web3.js";
 
 const LS_WALLET = "neo-dex-wallet-adapter";
 const LS_WALLET_PK = "neo-dex-wallet-pk";
-/** After explicit disconnect, skip `onlyIfTrusted` reconnect until user connects again. */
+/** After explicit disconnect, skip silent reconnect until user connects again. */
 const SS_SKIP_SILENT = "neo-dex-skip-silent-reconnect";
+const WALLET_STANDARD_APP_READY_EVENT = "wallet-standard:app-ready";
+const WALLET_STANDARD_REGISTER_EVENT = "wallet-standard:register-wallet";
+const DEFAULT_SOLANA_CHAIN = "solana:mainnet";
+
 let warmedPageLinks = false;
+let walletStandardBootstrapped = false;
+
+const standardWalletRegistry = new Map();
+const standardWalletAdapters = new WeakMap();
 
 function getPhantomProvider() {
   const viaPhantom = window.phantom?.solana;
   if (viaPhantom?.isPhantom) return viaPhantom;
-  const s = window.solana;
-  if (s?.isPhantom) return s;
+  const injected = window.solana;
+  if (injected?.isPhantom) return injected;
   return null;
 }
 
-const ADAPTERS = [
+const LEGACY_ADAPTERS = [
   {
     id: "phantom",
     name: "Phantom",
@@ -52,7 +64,7 @@ function emitWalletChanged() {
 export function fmtShortPk(pk) {
   if (!pk) return "";
   const s = pk.toBase58();
-  return s.slice(0, 4) + "…" + s.slice(-4);
+  return s.slice(0, 4) + "..." + s.slice(-4);
 }
 
 export function getPublicKey() {
@@ -62,7 +74,7 @@ export function getPublicKey() {
 function fmtShortPkString(raw) {
   const s = String(raw || "").trim();
   if (s.length < 8) return "";
-  return s.slice(0, 4) + "â€¦" + s.slice(-4);
+  return s.slice(0, 4) + "..." + s.slice(-4);
 }
 
 function readCachedWalletPk() {
@@ -82,43 +94,366 @@ function writeCachedWalletPk(pk) {
   }
 }
 
+function readStoredWalletId() {
+  try {
+    return localStorage.getItem(LS_WALLET) || "";
+  } catch (_) {
+    return "";
+  }
+}
+
 export function getProvider() {
   return provider;
 }
 
-export function listInstalledWallets() {
-  return ADAPTERS.map((a) => ({
-    id: a.id,
-    name: a.name,
-    adapter: a.get(),
-  })).filter((x) => x.adapter);
+function normalizeWalletName(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
 }
 
-function orderedAdapters() {
-  const pref = localStorage.getItem(LS_WALLET);
-  const rest = ADAPTERS.filter((a) => a.id !== pref);
-  const first = ADAPTERS.find((a) => a.id === pref);
-  return pref && first ? [first, ...rest] : [...ADAPTERS];
+function walletIdFromName(name) {
+  const raw = String(name || "").trim();
+  if (!raw) return "wallet";
+  const lower = raw.toLowerCase();
+  if (lower.includes("jupiter")) return "jupiter";
+  return lower.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "wallet";
 }
 
-function detectAdapterId(adapter) {
-  if (!adapter) return null;
-  if (adapter?.isSolflare) return "solflare";
-  if (adapter?.isPhantom) return "phantom";
-  if (adapter?.isBackpack || window.backpack?.solana === adapter) {
-    return "backpack";
+function toUint8Array(value) {
+  if (!value) return null;
+  if (value instanceof Uint8Array) return value;
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  if (ArrayBuffer.isView(value)) {
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
   }
-  const found = ADAPTERS.find((a) => a.get() === adapter);
-  return found?.id || null;
+  if (Array.isArray(value)) return Uint8Array.from(value);
+  return null;
 }
 
 function readPk(p) {
   const pk = p?.publicKey;
   if (!pk) return null;
-  return pk instanceof PublicKey ? pk : new PublicKey(pk.toString());
+  if (pk instanceof PublicKey) return pk;
+  if (pk?.toBytes) return new PublicKey(pk.toBytes());
+  return new PublicKey(pk.toString());
 }
 
-/** Wallet page chip (#home-address-chip) must mirror session state — not only async dashboard refresh. */
+function isSolanaChain(chain) {
+  return String(chain || "").startsWith("solana:");
+}
+
+function pickSolanaChain(account, wallet) {
+  const accountChains = Array.isArray(account?.chains)
+    ? account.chains
+    : [];
+  const walletChains = Array.isArray(wallet?.chains) ? wallet.chains : [];
+  return (
+    accountChains.find(isSolanaChain) ||
+    walletChains.find(isSolanaChain) ||
+    DEFAULT_SOLANA_CHAIN
+  );
+}
+
+function getStandardAccountPublicKey(account) {
+  if (!account) return null;
+  if (account.address) return new PublicKey(account.address);
+  const bytes = toUint8Array(account.publicKey);
+  return bytes ? new PublicKey(bytes) : null;
+}
+
+function getStandardAccountAddress(account) {
+  if (account?.address) return account.address;
+  const pk = getStandardAccountPublicKey(account);
+  return pk ? pk.toBase58() : "";
+}
+
+function pickStandardAccount(wallet, accounts = wallet?.accounts) {
+  if (!Array.isArray(accounts) || accounts.length === 0) return null;
+  return (
+    accounts.find((account) =>
+      Array.isArray(account?.chains)
+        ? account.chains.some(isSolanaChain)
+        : Boolean(
+            account?.address ||
+              account?.publicKey ||
+              wallet?.chains?.some?.(isSolanaChain)
+          )
+    ) || accounts[0]
+  );
+}
+
+function serializeTransactionForWallet(tx) {
+  if (tx instanceof VersionedTransaction) return tx.serialize();
+  return tx.serialize({
+    verifySignatures: false,
+    requireAllSignatures: false,
+  });
+}
+
+function deserializeSignedTransaction(serialized, original) {
+  const bytes = toUint8Array(serialized);
+  if (!bytes) throw new Error("Wallet returned an unreadable signed transaction");
+  if (original instanceof VersionedTransaction) {
+    return VersionedTransaction.deserialize(bytes);
+  }
+  return Transaction.from(bytes);
+}
+
+function extractSignedTransaction(output) {
+  if (!output) return null;
+  const first = Array.isArray(output) ? output[0] : output;
+  return (
+    toUint8Array(first?.signedTransaction) ||
+    toUint8Array(first?.transaction) ||
+    toUint8Array(first)
+  );
+}
+
+function supportsStandardWallet(wallet) {
+  if (!wallet?.features) return false;
+  if (!wallet.features["standard:connect"]?.connect) return false;
+  if (!wallet.features["standard:disconnect"]?.disconnect) return false;
+  if (!wallet.features["solana:signTransaction"]?.signTransaction) return false;
+  const hasWalletChain =
+    Array.isArray(wallet.chains) && wallet.chains.some(isSolanaChain);
+  const hasAccountChain =
+    Array.isArray(wallet.accounts) &&
+    wallet.accounts.some((account) =>
+      Array.isArray(account?.chains)
+        ? account.chains.some(isSolanaChain)
+        : Boolean(account?.address || account?.publicKey)
+    );
+  return hasWalletChain || hasAccountChain;
+}
+
+function registerStandardWallet(wallet) {
+  if (!supportsStandardWallet(wallet)) return;
+  const key = walletIdFromName(wallet.name) + "::" + String(wallet.version || "");
+  standardWalletRegistry.set(key, wallet);
+}
+
+function handleWalletStandardDetail(detail) {
+  if (!detail) return;
+  if (typeof detail === "function") {
+    try {
+      detail(registerStandardWallet);
+    } catch (_) {}
+    return;
+  }
+  if (typeof detail.register === "function") {
+    try {
+      detail.register(registerStandardWallet);
+    } catch (_) {}
+    return;
+  }
+  if (Array.isArray(detail.wallets)) {
+    detail.wallets.forEach(registerStandardWallet);
+    return;
+  }
+  if (Array.isArray(detail)) {
+    detail.forEach(registerStandardWallet);
+    return;
+  }
+  registerStandardWallet(detail.wallet || detail);
+}
+
+function ensureWalletStandardDiscovery() {
+  if (walletStandardBootstrapped || typeof window === "undefined") return;
+  walletStandardBootstrapped = true;
+
+  window.addEventListener(WALLET_STANDARD_REGISTER_EVENT, (event) => {
+    handleWalletStandardDetail(event?.detail);
+  });
+
+  try {
+    window.dispatchEvent(
+      new CustomEvent(WALLET_STANDARD_APP_READY_EVENT, {
+        detail: registerStandardWallet,
+      })
+    );
+  } catch (_) {
+    /* ignore */
+  }
+}
+
+function createEmitter() {
+  const listeners = new Map();
+
+  const on = (event, handler) => {
+    if (!listeners.has(event)) listeners.set(event, new Set());
+    listeners.get(event).add(handler);
+  };
+
+  const off = (event, handler) => {
+    listeners.get(event)?.delete(handler);
+  };
+
+  const emit = (event, value) => {
+    listeners.get(event)?.forEach((handler) => {
+      try {
+        handler(value);
+      } catch (_) {
+        /* ignore listener failures */
+      }
+    });
+  };
+
+  return { on, off, emit };
+}
+
+function createWalletStandardAdapter(wallet) {
+  const events = createEmitter();
+  let account = pickStandardAccount(wallet);
+
+  const adapter = {
+    __neoDexAdapterId: walletIdFromName(wallet.name),
+    __neoDexStandardWallet: wallet,
+    __neoDexWalletStandard: true,
+    get publicKey() {
+      return getStandardAccountPublicKey(account);
+    },
+    async connect(options = undefined) {
+      const connectFeature = wallet.features?.["standard:connect"];
+      if (!connectFeature?.connect) {
+        throw new Error((wallet.name || "Wallet") + " cannot connect");
+      }
+      const result = options?.onlyIfTrusted
+        ? await connectFeature.connect({ silent: true })
+        : await connectFeature.connect();
+      account = pickStandardAccount(wallet, result?.accounts || wallet.accounts);
+      const nextPk = getStandardAccountPublicKey(account);
+      if (!nextPk) {
+        throw new Error((wallet.name || "Wallet") + " did not expose a Solana account");
+      }
+      events.emit("accountChanged", nextPk);
+      return nextPk;
+    },
+    async disconnect() {
+      const disconnectFeature = wallet.features?.["standard:disconnect"];
+      const hadAddress = getStandardAccountAddress(account);
+      if (disconnectFeature?.disconnect) {
+        await disconnectFeature.disconnect();
+      }
+      account = pickStandardAccount(wallet);
+      if (hadAddress) {
+        events.emit("accountChanged", null);
+        events.emit("disconnect");
+      }
+    },
+    async signTransaction(transaction) {
+      const signFeature = wallet.features?.["solana:signTransaction"];
+      if (!signFeature?.signTransaction) {
+        throw new Error((wallet.name || "Wallet") + " cannot sign transactions");
+      }
+      const activeAccount = account || pickStandardAccount(wallet);
+      if (!activeAccount) throw new Error("Wallet not connected");
+      const signed = await signFeature.signTransaction({
+        account: activeAccount,
+        chain: pickSolanaChain(activeAccount, wallet),
+        transaction: serializeTransactionForWallet(transaction),
+      });
+      const signedBytes = extractSignedTransaction(signed);
+      if (!signedBytes) {
+        throw new Error("Wallet did not return a signed transaction");
+      }
+      return deserializeSignedTransaction(signedBytes, transaction);
+    },
+    on(event, handler) {
+      events.on(event, handler);
+      return adapter;
+    },
+    off(event, handler) {
+      events.off(event, handler);
+      return adapter;
+    },
+    removeListener(event, handler) {
+      events.off(event, handler);
+      return adapter;
+    },
+  };
+
+  try {
+    wallet.features?.["standard:events"]?.on?.("change", (changes) => {
+      const prevAddress = getStandardAccountAddress(account);
+      const nextAccount = pickStandardAccount(
+        wallet,
+        changes?.accounts || wallet.accounts
+      );
+      const nextAddress = getStandardAccountAddress(nextAccount);
+      account = nextAccount;
+
+      if (prevAddress !== nextAddress) {
+        events.emit("accountChanged", getStandardAccountPublicKey(nextAccount));
+      }
+      if (prevAddress && !nextAddress) {
+        events.emit("disconnect");
+      }
+    });
+  } catch (_) {
+    /* ignore unsupported wallet-standard events */
+  }
+
+  return adapter;
+}
+
+function getWalletStandardAdapter(wallet) {
+  let adapter = standardWalletAdapters.get(wallet);
+  if (!adapter) {
+    adapter = createWalletStandardAdapter(wallet);
+    standardWalletAdapters.set(wallet, adapter);
+  }
+  return adapter;
+}
+
+export function listInstalledWallets() {
+  ensureWalletStandardDiscovery();
+
+  const installed = [];
+  const seenIds = new Set();
+  const seenNames = new Set();
+
+  const pushAdapter = (id, name, adapter) => {
+    if (!adapter) return;
+    const normName = normalizeWalletName(name);
+    if (seenIds.has(id) || seenNames.has(normName)) return;
+    seenIds.add(id);
+    seenNames.add(normName);
+    installed.push({ id, name, adapter });
+  };
+
+  LEGACY_ADAPTERS.forEach((entry) => {
+    pushAdapter(entry.id, entry.name, entry.get());
+  });
+
+  standardWalletRegistry.forEach((wallet) => {
+    pushAdapter(walletIdFromName(wallet.name), wallet.name, getWalletStandardAdapter(wallet));
+  });
+
+  return installed;
+}
+
+function orderedAdapters() {
+  const pref = readStoredWalletId();
+  const installed = listInstalledWallets();
+  const rest = installed.filter((entry) => entry.id !== pref);
+  const first = installed.find((entry) => entry.id === pref);
+  return pref && first ? [first, ...rest] : installed;
+}
+
+function detectAdapterId(adapter) {
+  if (!adapter) return null;
+  if (adapter.__neoDexAdapterId) return adapter.__neoDexAdapterId;
+  if (adapter?.isSolflare) return "solflare";
+  if (adapter?.isPhantom) return "phantom";
+  if (adapter?.isBackpack || window.backpack?.solana === adapter) {
+    return "backpack";
+  }
+  const found = LEGACY_ADAPTERS.find((entry) => entry.get() === adapter);
+  return found?.id || null;
+}
+
+/** Wallet page chip (#home-address-chip) must mirror session state, not only async dashboard refresh. */
 function syncHomePageWalletChip() {
   const el = document.getElementById("home-address-chip");
   if (!el) return;
@@ -190,11 +525,12 @@ function bindProvider(p, onChange) {
       sessionStorage.setItem(SS_SKIP_SILENT, "1");
     } catch (_) {}
     syncHomePageWalletChip();
+    emitWalletChanged();
     onChange?.();
   };
   const onAccountChanged = (pk) => {
     if (pk) {
-      publicKey = new PublicKey(pk.toString());
+      publicKey = pk instanceof PublicKey ? pk : new PublicKey(pk.toString());
       writeCachedWalletPk(publicKey.toBase58());
     } else {
       publicKey = null;
@@ -202,6 +538,7 @@ function bindProvider(p, onChange) {
       writeCachedWalletPk("");
     }
     syncHomePageWalletChip();
+    emitWalletChanged();
     onChange?.();
   };
 
@@ -227,30 +564,34 @@ export function setConnectedWallet(p, adapterId, onChange) {
 }
 
 export async function trySilentReconnect(onChange) {
+  ensureWalletStandardDiscovery();
   try {
     if (sessionStorage.getItem(SS_SKIP_SILENT) === "1") return false;
   } catch (_) {
     /* private mode */
   }
-  const pref = localStorage.getItem(LS_WALLET);
+
+  const pref = readStoredWalletId();
   if (pref) {
-    const preferred = ADAPTERS.find((a) => a.id === pref);
-    const p = preferred?.get?.();
-    if (!p) return false;
-    try {
-      await p.connect({ onlyIfTrusted: true });
-      setConnectedWallet(p, pref, onChange);
-      return true;
-    } catch (_) {
-      return false;
+    const preferred = orderedAdapters().find((entry) => entry.id === pref);
+    const p = preferred?.adapter || null;
+    if (p) {
+      try {
+        await p.connect({ onlyIfTrusted: true });
+        setConnectedWallet(p, pref, onChange);
+        return true;
+      } catch (_) {
+        return false;
+      }
     }
   }
-  for (const def of orderedAdapters()) {
-    const p = def.get();
+
+  for (const entry of orderedAdapters()) {
+    const p = entry.adapter;
     if (!p) continue;
     try {
       await p.connect({ onlyIfTrusted: true });
-      setConnectedWallet(p, def.id, onChange);
+      setConnectedWallet(p, entry.id, onChange);
       return true;
     } catch (_) {
       /* not trusted yet */
@@ -265,10 +606,7 @@ export async function connectInteractive(adapter, onChange, adapterId = null) {
     sessionStorage.removeItem(SS_SKIP_SILENT);
   } catch (_) {}
   const id =
-    adapterId ||
-    detectAdapterId(adapter) ||
-    localStorage.getItem(LS_WALLET) ||
-    "phantom";
+    adapterId || detectAdapterId(adapter) || readStoredWalletId() || "wallet";
   setConnectedWallet(adapter, id, onChange);
 }
 
@@ -289,9 +627,9 @@ export async function disconnectWallet(onChange) {
   onChange?.();
 }
 
-/** Short address + menu hint when connected (matches wireWalletConnectButton). */
+/** Short address and menu hint when connected (matches wireWalletConnectButton). */
 export function walletConnectButtonLabel() {
-  return publicKey ? fmtShortPk(publicKey) + " ▾" : "Connect";
+  return publicKey ? fmtShortPk(publicKey) + " v" : "Connect";
 }
 
 export function refreshWalletConnectButtonLabel(btn) {
@@ -302,7 +640,7 @@ export function refreshWalletConnectButtonLabel(btn) {
       return;
     }
     const cached = fmtShortPkString(readCachedWalletPk());
-    btn.textContent = cached ? cached + " â–¾" : live;
+    btn.textContent = cached ? cached + " v" : live;
   }
 }
 
@@ -343,11 +681,11 @@ function ensurePicker() {
     '<div class="w-full max-w-sm border-4 border-black bg-white p-6 shadow-[8px_8px_0_0_#000]">' +
     '<div class="mb-4 flex items-center justify-between border-b-4 border-black pb-3">' +
     '<h2 class="text-xl font-bold tracking-tight">Connect Wallet</h2>' +
-    '<button type="button" class="neo-wp-close flex h-10 w-10 items-center justify-center rounded-full border-2 border-black text-xl font-bold leading-none hover:bg-black hover:text-white">×</button>' +
-    '</div>' +
+    '<button type="button" class="neo-wp-close flex h-10 w-10 items-center justify-center rounded-full border-2 border-black text-xl font-bold leading-none hover:bg-black hover:text-white">x</button>' +
+    "</div>" +
     '<p class="mb-4 text-sm font-medium text-outline">Pick an installed wallet.</p>' +
     '<div id="neo-wallet-picker-list" class="flex flex-col gap-2"></div>' +
-    '</div></div>';
+    "</div></div>";
   document.body.appendChild(root);
   return root;
 }
@@ -361,6 +699,7 @@ export function closeWalletPicker() {
 }
 
 export function openWalletPicker(onPicked) {
+  ensureWalletStandardDiscovery();
   const root = ensurePicker();
   const list = root.querySelector("#neo-wallet-picker-list");
   list.innerHTML = "";
@@ -377,7 +716,7 @@ export function openWalletPicker(onPicked) {
   const installed = listInstalledWallets();
   if (installed.length === 0) {
     list.innerHTML =
-      '<p class="border-2 border-black bg-surface-container-low p-4 text-xs font-bold uppercase leading-relaxed">No Solana wallet detected. Install <a class="underline" href="https://phantom.app" target="_blank" rel="noopener">Phantom</a>, <a class="underline" href="https://solflare.com" target="_blank" rel="noopener">Solflare</a>, or <a class="underline" href="https://backpack.app" target="_blank" rel="noopener">Backpack</a>.</p>';
+      '<p class="border-2 border-black bg-surface-container-low p-4 text-xs font-bold uppercase leading-relaxed">No Solana wallet detected. Install Phantom, Solflare, Backpack, or Jupiter Wallet.</p>';
   } else {
     installed.forEach(({ id, name, adapter }) => {
       const btn = document.createElement("button");
@@ -420,9 +759,10 @@ export function openWalletPicker(onPicked) {
 
 /**
  * Wire #wallet-connect: silent reconnect on load; when connected, click opens
- * Disconnect / Change wallet menu; when disconnected, connect flow (silent or picker).
+ * the Disconnect / Change wallet menu; when disconnected, open the connect flow.
  */
 export async function wireWalletConnectButton(onChange) {
+  ensureWalletStandardDiscovery();
   const btn = document.getElementById("wallet-connect");
   if (!btn || btn.dataset.neoDexWallet === "1") return;
   btn.dataset.neoDexWallet = "1";
@@ -479,7 +819,7 @@ export async function wireWalletConnectButton(onChange) {
     }
   );
 
-  const ok = await trySilentReconnect(onChange);
+  await trySilentReconnect(onChange);
   refreshWalletConnectButtonLabel(btn);
 
   btn.setAttribute("aria-haspopup", "true");
@@ -503,7 +843,6 @@ export async function wireWalletConnectButton(onChange) {
       onChange?.();
       return;
     }
-    /** Defer so this click cannot interact with picker/backdrop in the same event turn. */
     queueMicrotask(() => {
       openWalletPicker(() => {
         refreshWalletConnectButtonLabel(btn);
