@@ -1,6 +1,7 @@
 import {
   LAMPORTS_PER_SOL,
   PublicKey,
+  Transaction,
   TransactionMessage,
   VersionedTransaction,
 } from "@solana/web3.js";
@@ -1057,40 +1058,46 @@ async function reclaimSolRent() {
   let lastSig = "";
   let reclaimedLamports = 0;
   try {
-    showCleanupToast("Preparing close-account transactions...", "info", {
-      noAutoDismiss: true,
-    });
-    const drafts = await withRpcRetry((conn) =>
-      buildReclaimDrafts(conn, owner, reclaimableAccounts)
-    );
-    if (!drafts.length) {
-      throw new Error("No close transactions could be prepared.");
-    }
-    const signedTxs = await signDraftTransactions(provider, drafts);
     const failedAccounts = [];
-    for (let i = 0; i < drafts.length; i += 1) {
-      const draft = drafts[i];
+    for (let i = 0; i < reclaimableAccounts.length; i += CLOSE_IXS_PER_TX) {
+      const chunk = reclaimableAccounts.slice(i, i + CLOSE_IXS_PER_TX);
       showCleanupToast(
-        `Submitting close transactions (${i + 1}/${drafts.length})...`,
+        `Closing empty accounts (${closed}/${reclaimableAccounts.length})...`,
         "info",
         { noAutoDismiss: true }
       );
       try {
-        const sig = await withRpcRetry((conn) =>
-          conn.sendRawTransaction(signedTxs[i].serialize(), {
+        const sig = await withRpcRetry(async (conn) => {
+          const tx = new Transaction();
+          chunk.forEach((acc) => {
+            tx.add(
+              createCloseAccountInstruction(
+                new PublicKey(acc.pubkey),
+                owner,
+                owner,
+                [],
+                acc.programId
+              )
+            );
+          });
+          const { blockhash } = await conn.getLatestBlockhash("confirmed");
+          tx.recentBlockhash = blockhash;
+          tx.feePayer = owner;
+          const signed = await provider.signTransaction(tx);
+          return conn.sendRawTransaction(signed.serialize(), {
             skipPreflight: false,
             maxRetries: 3,
-          })
-        );
+          });
+        });
         await waitForSignatureConfirmation(sig);
         lastSig = sig;
-        closed += draft.accounts.length;
-        reclaimedLamports += draft.accounts.reduce(
+        closed += chunk.length;
+        reclaimedLamports += chunk.reduce(
           (sum, acc) => sum + Number(acc.lamports || 0),
           0
         );
       } catch {
-        failedAccounts.push(...draft.accounts);
+        failedAccounts.push(...chunk);
       }
     }
     reclaimableAccounts = failedAccounts;
