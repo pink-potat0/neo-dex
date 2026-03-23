@@ -210,6 +210,12 @@ function extractSignedTransaction(output) {
   );
 }
 
+function extractMessageSignature(output) {
+  if (!output) return null;
+  const first = Array.isArray(output) ? output[0] : output;
+  return toUint8Array(first?.signature) || toUint8Array(first);
+}
+
 function supportsStandardWallet(wallet) {
   if (!wallet?.features) return false;
   if (!wallet.features["standard:connect"]?.connect) return false;
@@ -358,6 +364,25 @@ function createWalletStandardAdapter(wallet) {
         throw new Error("Wallet did not return a signed transaction");
       }
       return deserializeSignedTransaction(signedBytes, transaction);
+    },
+    async signMessage(message) {
+      const signFeature = wallet.features?.["solana:signMessage"];
+      if (!signFeature?.signMessage) {
+        throw new Error((wallet.name || "Wallet") + " cannot sign messages");
+      }
+      const activeAccount = account || pickStandardAccount(wallet);
+      if (!activeAccount) throw new Error("Wallet not connected");
+      const bytes =
+        message instanceof Uint8Array ? message : new TextEncoder().encode(String(message || ""));
+      const signed = await signFeature.signMessage({
+        account: activeAccount,
+        message: bytes,
+      });
+      const signature = extractMessageSignature(signed);
+      if (!signature) {
+        throw new Error("Wallet did not return a message signature");
+      }
+      return signature;
     },
     on(event, handler) {
       events.on(event, handler);

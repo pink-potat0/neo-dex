@@ -315,6 +315,25 @@ function writeCachedPrivacyBalanceLamports(owner, lamports) {
   }
 }
 
+function hasPrivacySessionSignature(owner = getPublicKey()) {
+  return Boolean(owner && getCachedPrivacySignature(owner));
+}
+
+function syncPrivacySessionUi() {
+  const topupLabel = document.getElementById("privacy-topup-label");
+  const topupBtn = document.querySelector("[data-privacy-topup]");
+  const hasSession = hasPrivacySessionSignature();
+  if (topupLabel) topupLabel.textContent = hasSession ? "Top up" : "Enable";
+  if (topupBtn) {
+    topupBtn.setAttribute(
+      "title",
+      hasSession
+        ? "Top up your private balance"
+        : "Enable Privacy Cash by signing a one-time session message"
+    );
+  }
+}
+
 async function getPrivacySignedSignature(owner, provider) {
   const cachedSig = getCachedPrivacySignature(owner);
   if (cachedSig) return cachedSig;
@@ -345,6 +364,29 @@ async function getPrivacySignedSignature(owner, provider) {
     /* ignore */
   }
   return sigBytes;
+}
+
+async function ensurePrivacySessionSignature({
+  showIntroToast = true,
+  successToast = "Privacy Cash enabled",
+} = {}) {
+  const owner = getPublicKey();
+  const provider = getProvider();
+  if (!owner || !provider) throw new Error("Connect wallet first");
+  if (hasPrivacySessionSignature(owner)) {
+    syncPrivacySessionUi();
+    return true;
+  }
+  if (showIntroToast) {
+    showToast("Enable Privacy Cash: confirm the one-time message signature", "info", {
+      durationMs: 5000,
+    });
+  }
+  await getPrivacySignedSignature(owner, provider);
+  syncPrivacySessionUi();
+  showToast(successToast, "success", { durationMs: 3000 });
+  void refreshPrivacyPoolBalance({ timeoutMs: 45000 });
+  return true;
 }
 
 async function loadPrivacySdk() {
@@ -453,8 +495,10 @@ async function refreshPrivacyPoolBalance({
     if (privacyLastKnownLamports == null) {
       setPrivacyBalanceDisplay("Sign to load");
     }
+    syncPrivacySessionUi();
     return null;
   }
+  syncPrivacySessionUi();
   if (privacyLastKnownLamports == null) {
     setPrivacyBalanceDisplay("...");
   }
@@ -503,7 +547,10 @@ async function fetchNativeWalletBalanceSol() {
 async function autoSignPrivacyOnLoad() {
   const owner = getPublicKey();
   const provider = getProvider();
-  if (!owner || !provider) return;
+  if (!owner || !provider) {
+    syncPrivacySessionUi();
+    return;
+  }
   const owner58 = owner.toBase58();
   if (privacyAutoSignWallet !== owner58) {
     privacyAutoSignWallet = owner58;
@@ -516,14 +563,13 @@ async function autoSignPrivacyOnLoad() {
     return;
   }
   try {
-    showToast("Enable Privacy Cash: confirm message signature", "info", {
-      durationMs: 5000,
+    await ensurePrivacySessionSignature({
+      showIntroToast: true,
+      successToast: "Privacy Cash enabled",
     });
-    await getPrivacySignedSignature(owner, provider);
-    showToast("Privacy Cash enabled", "success", { durationMs: 3000 });
-    void refreshPrivacyPoolBalance({ timeoutMs: 45000 });
   } catch {
-    // User may reject; keep passive "Sign to load" state.
+    syncPrivacySessionUi();
+    // User may reject or the wallet may require a user gesture; keep passive state.
   }
 }
 
@@ -830,6 +876,7 @@ function syncSendPageUi() {
     }).catch(() => {});
   }
   updateSendSubmitState();
+  syncPrivacySessionUi();
   void refreshWalletHoldings();
   void refreshSendAvailable();
   void refreshPrivacyPoolBalance();
@@ -1074,6 +1121,19 @@ function initPrivacyUi() {
     topupBtn.addEventListener("click", async () => {
       const ok = await ensureWalletForAction();
       if (!ok || !modal) return;
+      if (!hasPrivacySessionSignature()) {
+        try {
+          await ensurePrivacySessionSignature({
+            showIntroToast: true,
+            successToast: "Privacy Cash session enabled",
+          });
+        } catch (err) {
+          showToast(normalizePrivacyError(err, "Privacy session"), "error", {
+            durationMs: 7000,
+          });
+          return;
+        }
+      }
       if (modalAmount) modalAmount.value = (input?.value || "").trim();
       if (modalWalletBal) {
         modalWalletBal.textContent = "Loading...";
@@ -1209,6 +1269,18 @@ function initPrivacyUi() {
     if (amountAtomic > BigInt(Number.MAX_SAFE_INTEGER)) {
       return showToast("Amount is too large", "error");
     }
+    if (!hasPrivacySessionSignature()) {
+      try {
+        await ensurePrivacySessionSignature({
+          showIntroToast: true,
+          successToast: "Privacy Cash session enabled",
+        });
+      } catch (err) {
+        return showToast(normalizePrivacyError(err, "Privacy session"), "error", {
+          durationMs: 7000,
+        });
+      }
+    }
     try {
       const owner = getPublicKey();
       const hadCachedSig = owner ? !!getCachedPrivacySignature(owner) : false;
@@ -1272,6 +1344,7 @@ function initPrivacyUi() {
   });
 
   updatePrivacyTokenUi();
+  syncPrivacySessionUi();
 }
 
 async function fetchMaxSendableUi() {
