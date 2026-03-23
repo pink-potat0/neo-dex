@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<title>NEO DEX | Swap</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="../assets/js/tailwind-config.js"></script>
+<script src="../assets/js/theme.js"></script>
+<link rel="stylesheet" href="../assets/css/shared.css"/>
+<link rel="icon" type="image/png" href="../favicon.png"/>
+</head>
+<body class="page-swap bg-surface text-on-surface selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar -->
+<header class="fixed top-0 w-full border-b-4 border-black dark:border-white z-50 bg-white dark:bg-black/80 backdrop-blur-md shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex justify-between items-center px-6 h-20">
+<a class="flex items-center gap-3" href="../index.html">
+<h1 class="text-2xl font-bold tracking-tighter text-black dark:text-white uppercase font-['Space_Grotesk']">NEO DEX</h1>
+</a>
+<div class="flex items-center gap-3 sm:gap-4">
+<div class="hidden md:flex flex-wrap justify-end gap-4 lg:gap-6 mr-2">
+<a class="text-black dark:text-white font-bold uppercase tracking-tight hover:translate-x-[2px] hover:translate-y-[2px] transition-all" href="portfolio.html">Wallet</a>
+<a class="text-[#3df5c4] font-bold uppercase tracking-tight" href="swap.html">Swap</a>
+<a class="text-black dark:text-white font-bold uppercase tracking-tight hover:translate-x-[2px] hover:translate-y-[2px] transition-all" href="send.html">Send</a>
+<a class="text-black dark:text-white font-bold uppercase tracking-tight hover:translate-x-[2px] hover:translate-y-[2px] transition-all" href="bridge.html">Bridge</a>
+<a class="text-black dark:text-white font-bold uppercase tracking-tight hover:translate-x-[2px] hover:translate-y-[2px] transition-all" href="cleanup.html">Cleanup</a>
+</div>
+<button type="button" id="wallet-connect" class="border-4 border-black bg-black px-3 py-2 text-xs font-bold uppercase tracking-tight text-white shadow-[3px_3px_0_0_#000] hover:translate-x-px hover:translate-y-px hover:shadow-none active:scale-95 sm:px-4 sm:text-sm">Connect</button>
+<button type="button" id="theme-toggle" class="material-symbols-outlined text-black dark:text-white hover:translate-x-[2px] hover:translate-y-[2px] transition-all active:scale-95 duration-100" aria-label="Toggle dark mode">dark_mode</button>
+</div>
+</header>
+<main class="pt-[calc(8rem+env(safe-area-inset-top,0px))] pb-24 px-4 md:px-8 md:pt-[calc(9rem+env(safe-area-inset-top,0px))] flex flex-col items-center min-h-screen max-w-7xl mx-auto w-full">
+<!-- Swap Container -->
+<div class="w-full max-w-[480px] space-y-6 md:max-w-[760px]">
+<!-- Main Card -->
+<div class="bg-surface-container-lowest border-4 border-black neo-shadow p-6 md:p-8 relative">
+<!-- From Section -->
+<div class="space-y-2 mb-4">
+<div class="flex flex-wrap items-center justify-between gap-2">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">From</label>
+<div class="flex items-center gap-1">
+<span id="swap-balance-hint" class="text-xs sm:text-sm font-extrabold text-white bg-secondary px-2.5 py-1 border-2 border-black max-w-[min(100%,18rem)] sm:max-w-none truncate">Connect wallet to see balance</span>
+<button type="button" id="swap-refresh-balance" class="shrink-0 border-2 border-black bg-white p-1 text-black shadow-[2px_2px_0_0_#000] hover:translate-x-px hover:translate-y-px hover:shadow-none" title="Refresh balance" aria-label="Refresh balance">
+<span class="material-symbols-outlined text-lg leading-none">refresh</span>
+</button>
+</div>
+</div>
+<div class="swap-amount-row group border-4 border-black bg-surface-container-low p-3 shadow-[4px_4px_0_0_#000] transition-colors focus-within:ring-2 focus-within:ring-black focus-within:ring-offset-2 focus-within:ring-offset-surface-container-low">
+<div class="flex min-w-0 flex-nowrap items-stretch gap-3">
+<button type="button" class="swap-token-trigger flex shrink-0 items-center gap-1.5 self-center border-2 border-black bg-white py-2 pl-2 pr-2.5 shadow-[2px_2px_0_0_#000] transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none" data-open-token-modal data-token-side="from">
+<span class="material-symbols-outlined text-secondary text-xl leading-none">toll</span>
+<span class="token-symbol text-[11px] font-extrabold uppercase leading-none tracking-tight text-black">SOL</span>
+<span class="material-symbols-outlined text-base leading-none text-black">expand_more</span>
+</button>
+<div class="flex min-w-0 flex-1 flex-col items-end justify-center gap-2">
+<div class="flex shrink-0 gap-1.5" role="group" aria-label="From amount">
+<button type="button" id="swap-from-half" class="rounded border-2 border-black bg-secondary-container px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-tight text-on-secondary-container shadow-[3px_3px_0_0_#000] hover:translate-x-px hover:translate-y-px hover:shadow-[2px_2px_0_0_#000] disabled:cursor-not-allowed disabled:opacity-40">Half</button>
+<button type="button" id="swap-from-max" class="rounded border-2 border-black bg-primary-container px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-tight text-black shadow-[3px_3px_0_0_#000] hover:translate-x-px hover:translate-y-px hover:shadow-[2px_2px_0_0_#000] disabled:cursor-not-allowed disabled:opacity-40">Max</button>
+</div>
+<div class="w-full min-w-0">
+<input id="swap-amount-in" class="w-full border-0 bg-transparent p-0 text-right text-3xl font-bold tabular-nums text-on-surface placeholder:text-on-surface-variant focus:ring-0" placeholder="0.00" type="text" inputmode="decimal" autocomplete="off"/>
+<p class="mt-0.5 text-right text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">Jupiter route · mainnet</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Swap Icon Divider -->
+<div class="absolute left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+<button type="button" id="swap-flip" class="border-4 border-black bg-primary-container p-3 text-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] transition-transform duration-150 active:scale-90">
+<span class="material-symbols-outlined swap-flip-icon inline-block font-bold text-2xl will-change-transform">swap_calls</span>
+</button>
+</div>
+<!-- To Section -->
+<div class="space-y-2 mt-8">
+<div class="flex flex-wrap items-center justify-between gap-2">
+<label class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">To</label>
+<span class="text-[10px] font-bold uppercase text-on-surface-variant">Estimated received</span>
+</div>
+<div class="swap-amount-row border-4 border-black bg-surface-container-low p-3 shadow-[4px_4px_0_0_#000]">
+<div class="flex min-w-0 flex-nowrap items-stretch gap-3">
+<button type="button" class="swap-token-trigger flex shrink-0 items-center gap-1.5 self-center border-2 border-black bg-white py-2 pl-2 pr-2.5 shadow-[2px_2px_0_0_#000] transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none" data-open-token-modal data-token-side="to">
+<span class="material-symbols-outlined text-secondary text-xl leading-none">attach_money</span>
+<span class="token-symbol text-[11px] font-extrabold uppercase leading-none tracking-tight text-black">USDC</span>
+<span class="material-symbols-outlined text-base leading-none text-black">expand_more</span>
+</button>
+<div class="flex min-w-0 flex-1 flex-col items-end justify-center gap-2">
+<div class="w-full min-w-0">
+<input id="swap-amount-out" class="w-full cursor-default border-0 bg-transparent p-0 text-right text-3xl font-bold tabular-nums text-on-surface placeholder:text-on-surface-variant focus:ring-0" placeholder="0.00" readonly type="text" tabindex="-1"/>
+<p class="mt-0.5 text-right text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">Estimated output</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<p class="mt-2 border-t-2 border-dashed border-outline-variant pt-3 text-center text-[10px] font-extrabold uppercase tracking-widest text-on-surface-variant">Powered by Jupiter</p>
+<p id="swap-status" class="mt-4 min-h-[1.25rem] text-center text-[10px] font-bold uppercase text-error"></p>
+<!-- Swap Button -->
+<button type="button" id="swap-submit" class="mt-4 w-full border-4 border-black bg-primary-container py-5 font-headline text-2xl font-extrabold uppercase tracking-widest text-on-primary-container neo-shadow neo-shadow-hover transition-all active:translate-x-[4px] active:translate-y-[4px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50">
+Connect wallet
+</button>
+</div>
+</div>
+</main>
+<footer class="site-footer">&copy; pinkpotato 2026</footer>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 left-0 z-50 flex h-16 w-full justify-around border-t-4 border-black bg-white dark:border-white dark:bg-black">
+<a class="flex min-w-0 flex-1 flex-col items-center justify-center px-1 text-black opacity-70 hover:bg-[#3df5c4] hover:text-[#071a1f] dark:text-white" href="portfolio.html">
+<span class="material-symbols-outlined text-[22px]">wallet</span>
+<span class="font-['Space_Grotesk'] text-[8px] font-bold uppercase leading-tight">Wallet</span>
+</a>
+<a class="flex min-w-0 flex-1 flex-col items-center justify-center border-x-2 border-black bg-[#9b4dff] px-1 text-white" href="swap.html">
+<span class="material-symbols-outlined text-[22px]">swap_calls</span>
+<span class="font-['Space_Grotesk'] text-[8px] font-bold uppercase leading-tight">Swap</span>
+</a>
+<a class="flex min-w-0 flex-1 flex-col items-center justify-center px-1 text-black opacity-70 hover:bg-[#3df5c4] hover:text-[#071a1f] dark:text-white" href="send.html">
+<span class="material-symbols-outlined text-[22px]">send</span>
+<span class="font-['Space_Grotesk'] text-[8px] font-bold uppercase leading-tight">Send</span>
+</a>
+<a class="flex min-w-0 flex-1 flex-col items-center justify-center px-1 text-black opacity-70 hover:bg-[#3df5c4] hover:text-[#071a1f] dark:text-white" href="bridge.html">
+<span class="material-symbols-outlined text-[22px]">hub</span>
+<span class="font-['Space_Grotesk'] text-[8px] font-bold uppercase leading-tight">Bridge</span>
+</a>
+<a class="flex min-w-0 flex-1 flex-col items-center justify-center px-1 text-black opacity-70 hover:bg-[#3df5c4] hover:text-[#071a1f] dark:text-white" href="cleanup.html">
+<span class="material-symbols-outlined text-[22px]">cleaning_services</span>
+<span class="font-['Space_Grotesk'] text-[8px] font-bold uppercase leading-tight">Cleanup</span>
+</a>
+</nav>
+<!-- Token selector modal -->
+<div id="token-modal" class="fixed inset-0 z-[60] hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="token-modal-title">
+<div class="absolute inset-0 bg-black/50 backdrop-blur-sm" data-token-modal-backdrop data-popup-backdrop></div>
+<div class="relative flex min-h-[100dvh] w-full items-center justify-center px-4 py-6 pointer-events-none">
+<div data-popup-panel class="pointer-events-auto flex h-[min(52rem,min(90dvh,calc(100dvh-1.5rem)))] w-full max-w-[480px] flex-col overflow-hidden bg-surface-container-lowest border-4 border-black neo-shadow md:max-w-[620px]">
+<div class="flex shrink-0 items-center justify-between border-b-4 border-black bg-white p-6 md:p-8 md:pb-6">
+<h2 id="token-modal-title" class="text-2xl font-bold tracking-tighter uppercase font-headline">Select token</h2>
+<button type="button" class="flex h-10 w-10 shrink-0 items-center justify-center border-2 border-black hover:bg-error-container hover:text-white transition-colors active:scale-95 duration-100" data-token-modal-close aria-label="Close">
+<span class="material-symbols-outlined text-2xl">close</span>
+</button>
+</div>
+<div class="shrink-0 border-b-4 border-black bg-surface-container-low p-4 md:px-6 md:py-4">
+<div class="relative">
+<div class="pointer-events-none absolute inset-y-0 left-4 flex items-center">
+<span class="material-symbols-outlined text-outline">search</span>
+</div>
+<input id="token-modal-search" class="w-full border-4 border-black bg-white py-4 pl-12 pr-4 font-bold uppercase tracking-tight placeholder:text-outline-variant transition-all outline-none focus:border-primary focus:ring-0" placeholder="Name, symbol, or paste mint address…" type="search" autocomplete="off"/>
+</div>
+</div>
+<div class="min-h-0 flex-1 overflow-y-auto p-4 md:px-6 md:py-4">
+<p class="mb-3 text-[10px] font-bold uppercase tracking-widest text-outline">Tokens</p>
+<div id="token-modal-list" class="space-y-0 border-t-2 border-black" role="listbox" aria-label="Tokens"></div>
+<p id="token-modal-loading" class="hidden border-2 border-black bg-surface-container-low p-4 text-xs font-bold uppercase leading-relaxed text-outline">Loading tokens…</p>
+</div>
+</div>
+</div>
+</div>
+<div id="swap-toast-host" class="pointer-events-none fixed bottom-20 right-4 z-[70] flex max-w-[min(94vw,26rem)] flex-col items-end gap-2 md:bottom-8" aria-live="polite"></div>
+<script type="module" src="../src/swap-main.js"></script>
+</body></html>
+
+

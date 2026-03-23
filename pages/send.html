@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<title>NEO DEX | Send</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="../assets/js/tailwind-config.js"></script>
+<script src="../assets/js/theme.js"></script>
+<link rel="stylesheet" href="../assets/css/shared.css"/>
+<link rel="icon" type="image/png" href="../favicon.png"/>
+</head>
+<body class="page-send bg-surface text-on-surface selection:bg-primary-container selection:text-on-primary-container">
+<header class="fixed top-0 w-full border-b-4 border-black dark:border-white z-50 bg-white dark:bg-black/80 backdrop-blur-md shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex justify-between items-center px-6 h-20">
+<a class="flex items-center gap-3" href="../index.html">
+<h1 class="text-2xl font-bold tracking-tighter text-black dark:text-white uppercase font-['Space_Grotesk']">NEO DEX</h1>
+</a>
+<div class="flex items-center gap-3 sm:gap-4">
+<div class="hidden md:flex flex-wrap justify-end gap-4 lg:gap-6 mr-2">
+<a class="text-black dark:text-white font-bold uppercase tracking-tight hover:translate-x-[2px] hover:translate-y-[2px] transition-all" href="portfolio.html">Wallet</a>
+<a class="text-black dark:text-white font-bold uppercase tracking-tight hover:translate-x-[2px] hover:translate-y-[2px] transition-all" href="swap.html">Swap</a>
+<a class="text-[#3df5c4] font-bold uppercase tracking-tight" href="send.html">Send</a>
+<a class="text-black dark:text-white font-bold uppercase tracking-tight hover:translate-x-[2px] hover:translate-y-[2px] transition-all" href="bridge.html">Bridge</a>
+<a class="text-black dark:text-white font-bold uppercase tracking-tight hover:translate-x-[2px] hover:translate-y-[2px] transition-all" href="cleanup.html">Cleanup</a>
+</div>
+<button type="button" id="wallet-connect" class="border-4 border-black bg-black px-3 py-2 text-xs font-bold uppercase tracking-tight text-white shadow-[3px_3px_0_0_#000] hover:translate-x-px hover:translate-y-px hover:shadow-none active:scale-95 sm:px-4 sm:text-sm">Connect</button>
+<button type="button" id="theme-toggle" class="material-symbols-outlined text-black dark:text-white hover:translate-x-[2px] hover:translate-y-[2px] transition-all active:scale-95 duration-100" aria-label="Toggle dark mode">dark_mode</button>
+</div>
+</header>
+<main id="send-page" class="mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center px-4 pt-[calc(8rem+env(safe-area-inset-top,0px))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] sm:pb-24 md:px-8 md:pt-[calc(9rem+env(safe-area-inset-top,0px))]">
+<div class="mx-auto w-full min-w-0 max-w-[480px] space-y-4 sm:space-y-6 md:max-w-[680px]">
+<div class="grid grid-cols-2 gap-0 border-4 border-black">
+<button type="button" class="border-r-4 border-black py-3 text-center text-xs font-bold uppercase tracking-tight transition-colors bg-primary-container text-black" data-send-tab="standard" aria-selected="true">Standard</button>
+<button type="button" class="py-3 text-center text-xs font-bold uppercase tracking-tight transition-colors bg-surface-container-low text-on-surface" data-send-tab="privacy" aria-selected="false">Privacy pool</button>
+</div>
+<div class="border-4 border-black bg-surface-container-lowest p-4 sm:p-6 md:p-8 neo-shadow">
+<div data-send-panel="standard" class="space-y-4">
+<div class="space-y-2">
+<div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between sm:gap-x-3">
+<span class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Asset</span>
+<div class="flex min-w-0 flex-wrap items-center justify-between gap-2 sm:justify-end">
+<span class="flex min-w-0 max-w-[65%] items-center gap-1 text-sm font-extrabold tabular-nums text-on-surface sm:max-w-full sm:text-base">
+<span class="material-symbols-outlined shrink-0 text-base text-on-surface-variant sm:text-lg" aria-hidden="true">account_balance_wallet</span>
+<span id="send-asset-balance-value" class="min-w-0 truncate" aria-live="polite">—</span>
+</span>
+<div class="flex shrink-0 items-center gap-1">
+<button type="button" id="send-half" class="min-h-[2.5rem] min-w-[2.75rem] border-2 border-black bg-surface-container-low px-2 py-1 text-[10px] font-bold uppercase tracking-tight hover:bg-primary-container sm:min-h-0 sm:min-w-0 sm:text-xs">Half</button>
+<button type="button" id="send-max" class="min-h-[2.5rem] min-w-[2.75rem] border-2 border-black bg-inverse-surface px-2 py-1 text-[10px] font-bold uppercase tracking-tight text-primary-container hover:bg-black sm:min-h-0 sm:min-w-0 sm:text-xs">Max</button>
+</div>
+</div>
+</div>
+<div class="flex flex-col gap-3 border-4 border-black bg-surface-container-low p-3 focus-within:border-primary sm:flex-row sm:flex-nowrap sm:items-stretch sm:gap-2 sm:p-4">
+<div class="relative min-w-0 w-full sm:w-auto sm:shrink-0">
+<button type="button" id="send-token-trigger" class="flex h-12 w-full min-w-0 items-center justify-between gap-2 border-2 border-black bg-white py-1 pl-1 pr-2 font-bold uppercase sm:h-[3.25rem] sm:w-auto sm:justify-start sm:gap-2 sm:pl-2 sm:pr-3" aria-expanded="false" aria-haspopup="listbox" aria-label="Select token">
+<span class="flex min-w-0 items-center gap-1.5 sm:gap-2">
+<span id="send-token-pill-media" class="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden border border-black bg-surface-container-low text-[10px] font-extrabold">SOL</span>
+<span class="send-token-symbol min-w-0 truncate text-left max-w-[40vw] sm:max-w-[6rem]">SOL</span>
+</span>
+<span class="material-symbols-outlined shrink-0 text-[0.75rem] leading-none" aria-hidden="true">expand_more</span>
+</button>
+<div id="send-token-dropdown" class="absolute left-0 right-0 top-[calc(100%+0.25rem)] z-30 hidden max-h-[min(16rem,50svh)] overflow-hidden border-4 border-black bg-surface-container-lowest shadow-[4px_4px_0_0_#000] sm:right-auto sm:w-[min(calc(100vw-2rem),22rem)]" role="presentation">
+<div id="send-token-dropdown-list" class="max-h-[min(14rem,36vh)] divide-y-2 divide-black overflow-y-auto" role="listbox"></div>
+<p id="send-wallet-balances-hint" class="hidden border-t-2 border-black p-2 text-[10px] font-medium text-outline"></p>
+</div>
+</div>
+<input id="send-amount" class="min-h-12 w-full min-w-0 flex-1 border-none bg-transparent text-center text-xl font-bold outline-none ring-0 placeholder:text-outline-variant sm:min-h-0 sm:text-2xl sm:text-left" placeholder="0.00" type="text" inputmode="decimal" autocomplete="off"/>
+</div>
+<p id="send-available" class="break-words text-[10px] font-bold uppercase leading-snug text-outline">Connect wallet to see balance</p>
+</div>
+<div class="space-y-2">
+<label id="send-recipients-field-label" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Recipient</label>
+<div id="send-recipients-list" class="space-y-2">
+<div class="send-recipient-row flex gap-2" data-recipient-index="0">
+<div class="min-w-0 flex-1 border-4 border-black bg-white">
+<input class="send-recipient-input min-h-12 w-full min-w-0 border-0 bg-transparent px-3 py-3 font-mono text-xs font-bold text-black outline-none placeholder:text-outline focus:ring-0 dark:bg-white dark:text-black sm:min-h-0 sm:px-4 sm:text-sm" placeholder="Recipient address" type="text" autocomplete="off" enterkeyhint="done"/>
+</div>
+<div class="w-28 border-4 border-black bg-white sm:w-32">
+<input class="send-recipient-amount min-h-12 w-full border-0 bg-transparent px-2 py-3 text-center text-xs font-bold outline-none focus:ring-0 sm:min-h-0 sm:px-3 sm:text-sm sm:text-right" placeholder="Split amount" type="text" inputmode="decimal" autocomplete="off"/>
+</div>
+<button type="button" class="send-recipient-remove hidden h-12 w-10 shrink-0 border-2 border-black bg-surface-container-low text-lg font-bold leading-none hover:bg-error-container hover:text-white" aria-label="Remove recipient" tabindex="-1">×</button>
+</div>
+</div>
+<button type="button" id="send-add-recipient" class="mt-1 flex w-full items-center justify-center gap-2 border-2 border-dashed border-black bg-surface-container-low py-2 text-xs font-bold uppercase tracking-tight hover:bg-primary-container sm:w-auto sm:px-4">
+<span class="material-symbols-outlined text-lg">add</span>
+Add recipient
+</button>
+<p id="send-recipient-hint" class="text-[10px] font-bold uppercase text-outline">Up to 5 recipients · for 2+ wallets, amount auto-splits equally first · edit any row amount anytime</p>
+</div>
+<p id="send-status" class="min-h-[1.25rem] text-center text-[10px] font-bold uppercase text-error"></p>
+<button type="button" id="send-submit" class="mt-2 w-full border-4 border-black bg-primary-container py-4 font-headline text-lg font-extrabold uppercase tracking-widest text-on-primary-container neo-shadow neo-shadow-hover transition-all active:translate-x-[4px] active:translate-y-[4px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 sm:py-5 sm:text-2xl">Connect wallet</button>
+</div>
+<div data-send-panel="privacy" class="hidden space-y-4">
+<div>
+<label class="mb-2 block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Amount</label>
+<div class="flex flex-wrap items-center gap-2 border-4 border-black bg-surface-container-low p-3 sm:flex-nowrap sm:p-4">
+<input class="min-w-0 flex-1 border-none bg-transparent text-2xl font-bold outline-none ring-0 placeholder:text-outline-variant" placeholder="0.00" type="text" inputmode="decimal" id="privacy-amount-input"/>
+<button type="button" class="shrink-0 border-2 border-black bg-inverse-surface px-3 py-1.5 text-xs font-bold uppercase tracking-tight text-primary-container hover:bg-black" data-privacy-max>Max</button>
+<div class="shrink-0">
+<div class="flex shrink-0 items-center gap-2 border-2 border-black bg-white px-3 py-1.5 font-bold">
+<span id="privacy-token-icon" class="material-symbols-outlined text-primary text-lg">toll</span>
+<span id="privacy-token-symbol" class="uppercase">SOL</span>
+</div>
+</div>
+</div>
+</div>
+<div id="privacy-balance-row" class="flex items-center justify-between gap-3 border-b-2 border-dashed border-outline-variant pb-4">
+<p class="min-w-0 text-xs font-bold uppercase leading-snug tracking-tight text-outline sm:text-sm">
+<span id="privacy-balance-label" class="text-on-surface-variant">Private balance:</span>
+<span class="ml-1 font-mono normal-case text-on-surface" id="privacy-balance-display">0.000000000</span>
+<span id="privacy-balance-unit" class="ml-1">SOL</span>
+</p>
+<button type="button" class="flex shrink-0 items-center gap-1.5 border-2 border-outline-variant bg-transparent px-3.5 py-2 text-xs font-bold uppercase tracking-tight text-on-surface-variant transition-colors hover:border-black hover:bg-surface-container hover:text-on-surface" data-privacy-topup>
+<span class="material-symbols-outlined text-lg leading-none">add</span>
+<span id="privacy-topup-label">Top up</span>
+</button>
+</div>
+<div>
+<label class="mb-2 block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Recipient (shielded)</label>
+<input id="privacy-recipient-input" class="w-full border-4 border-black bg-white py-3 px-4 font-mono text-sm font-bold outline-none focus:border-primary" placeholder="Recipient address" type="text"/>
+</div>
+
+<button type="button" id="privacy-pool-submit" class="mt-6 flex w-full items-center justify-center gap-3 border-4 border-black bg-secondary py-5 font-headline text-2xl font-extrabold uppercase tracking-widest text-on-secondary neo-shadow neo-shadow-hover transition-all active:translate-x-[4px] active:translate-y-[4px] active:shadow-none">
+<span class="material-symbols-outlined text-3xl">send</span>
+Send via pool
+</button>
+</div>
+</div>
+</div>
+</main>
+<footer class="site-footer">&copy; pinkpotato 2026</footer>
+<nav class="md:hidden fixed bottom-0 left-0 z-50 flex h-16 w-full justify-around border-t-4 border-black bg-white dark:border-white dark:bg-black">
+<a class="flex min-w-0 flex-1 flex-col items-center justify-center px-1 text-black opacity-70 hover:bg-[#3df5c4] hover:text-[#071a1f] dark:text-white" href="portfolio.html">
+<span class="material-symbols-outlined text-[22px]">wallet</span>
+<span class="font-['Space_Grotesk'] text-[8px] font-bold uppercase leading-tight">Wallet</span>
+</a>
+<a class="flex min-w-0 flex-1 flex-col items-center justify-center px-1 text-black opacity-70 hover:bg-[#3df5c4] hover:text-[#071a1f] dark:text-white" href="swap.html">
+<span class="material-symbols-outlined text-[22px]">swap_calls</span>
+<span class="font-['Space_Grotesk'] text-[8px] font-bold uppercase leading-tight">Swap</span>
+</a>
+<a class="flex min-w-0 flex-1 flex-col items-center justify-center border-x-2 border-black bg-[#9b4dff] px-1 text-white" href="send.html">
+<span class="material-symbols-outlined text-[22px]">send</span>
+<span class="font-['Space_Grotesk'] text-[8px] font-bold uppercase leading-tight">Send</span>
+</a>
+<a class="flex min-w-0 flex-1 flex-col items-center justify-center px-1 text-black opacity-70 hover:bg-[#3df5c4] hover:text-[#071a1f] dark:text-white" href="bridge.html">
+<span class="material-symbols-outlined text-[22px]">hub</span>
+<span class="font-['Space_Grotesk'] text-[8px] font-bold uppercase leading-tight">Bridge</span>
+</a>
+<a class="flex min-w-0 flex-1 flex-col items-center justify-center px-1 text-black opacity-70 hover:bg-[#3df5c4] hover:text-[#071a1f] dark:text-white" href="cleanup.html">
+<span class="material-symbols-outlined text-[22px]">cleaning_services</span>
+<span class="font-['Space_Grotesk'] text-[8px] font-bold uppercase leading-tight">Cleanup</span>
+</a>
+</nav>
+<div id="send-toast-host" class="pointer-events-none fixed bottom-20 right-4 z-[140] flex max-w-[min(94vw,26rem)] flex-col items-end gap-2 md:bottom-8" aria-live="polite"></div>
+<div id="privacy-topup-modal" class="fixed inset-0 z-[90] hidden" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="privacy-topup-title">
+<div class="absolute inset-0 bg-black/55" data-privacy-topup-close data-popup-backdrop></div>
+<div class="relative flex min-h-[100dvh] w-full items-center justify-center p-4">
+<div data-popup-panel class="w-full max-w-[420px] border-4 border-black bg-surface-container-lowest p-5 text-on-surface shadow-[8px_8px_0_0_#000] sm:p-6">
+<div class="mb-4 flex items-start justify-between gap-4">
+<h2 id="privacy-topup-title" class="text-xl font-extrabold uppercase tracking-tight sm:text-2xl">Top up private balance</h2>
+<button type="button" class="border-2 border-black bg-white px-2 py-1 hover:bg-error-container hover:text-white" data-privacy-topup-close aria-label="Close">
+<span class="material-symbols-outlined text-2xl leading-none">close</span>
+</button>
+</div>
+<p class="mb-4 text-xs font-bold uppercase leading-snug text-outline sm:mb-5 sm:text-sm">Add funds to your private balance so you're able to send privately.</p>
+<div class="border-4 border-black bg-surface-container-low p-3">
+<div class="flex items-center gap-2">
+<input id="privacy-topup-amount" class="min-w-0 flex-1 border-2 border-black bg-white px-2 py-2 text-2xl font-bold text-black outline-none ring-0 placeholder:text-outline sm:text-[1.7rem]" placeholder="0.00" type="text" inputmode="decimal" autocomplete="off"/>
+<button type="button" id="privacy-topup-max" class="border-2 border-black bg-black px-2.5 py-1 text-xs font-extrabold uppercase text-primary-container">Max</button>
+<div class="flex items-center gap-1 border-2 border-black bg-white px-2 py-1 font-bold uppercase">
+<span id="privacy-topup-token-icon" class="material-symbols-outlined text-primary text-lg">toll</span>
+<span id="privacy-topup-token-symbol">SOL</span>
+<span class="material-symbols-outlined text-base">expand_more</span>
+</div>
+</div>
+</div>
+<p class="mt-3 text-xs font-bold uppercase text-outline sm:text-sm">Wallet balance: <span id="privacy-topup-wallet-balance" class="text-black">—</span> SOL</p>
+<button type="button" id="privacy-topup-submit" class="mt-5 w-full border-4 border-black bg-primary-container py-3 text-2xl font-extrabold uppercase tracking-tight text-black shadow-[5px_5px_0_0_#000] hover:translate-x-px hover:translate-y-px hover:shadow-none sm:mt-6 sm:text-[1.7rem]">Top Up</button>
+</div>
+</div>
+</div>
+<script type="module" src="../src/send-main.js"></script>
+</body>
+</html>
+
+

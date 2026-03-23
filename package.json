@@ -1,0 +1,24 @@
+{
+  "name": "neo-dex",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "vite",
+    "postinstall": "node ./scripts/fix-hasher-wasm.mjs"
+  },
+  "dependencies": {
+    "@lightprotocol/hasher.rs": "^0.2.1",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.95.8",
+    "buffer": "^6.0.3",
+    "privacycash": "^1.1.20",
+    "vite-plugin-node-polyfills": "^0.25.0"
+  },
+  "devDependencies": {
+    "vite": "^5.4.11",
+    "vite-plugin-static-copy": "^2.2.0"
+  }
+}
