@@ -94,6 +94,7 @@ let privacySdkPromise = null;
 let privacyLastKnownLamports = null;
 let privacyAutoSignAttempted = false;
 let privacyAutoSignWallet = "";
+let privacySessionPromptShownForWallet = "";
 
 function sendSnapshotKey(walletBase58) {
   return SEND_HOLDINGS_SNAPSHOT_PREFIX + walletBase58;
@@ -334,6 +335,22 @@ function syncPrivacySessionUi() {
   }
 }
 
+function closePrivacySessionModal() {
+  const modal = document.getElementById("privacy-session-modal");
+  if (modal) closePopup(modal);
+}
+
+function maybePromptPrivacySession() {
+  const owner = getPublicKey();
+  if (!owner || hasPrivacySessionSignature(owner)) return;
+  const wallet = owner.toBase58();
+  if (privacySessionPromptShownForWallet === wallet) return;
+  const modal = document.getElementById("privacy-session-modal");
+  if (!modal) return;
+  privacySessionPromptShownForWallet = wallet;
+  openPopup(modal);
+}
+
 async function getPrivacySignedSignature(owner, provider) {
   const cachedSig = getCachedPrivacySignature(owner);
   if (cachedSig) return cachedSig;
@@ -375,6 +392,7 @@ async function ensurePrivacySessionSignature({
   if (!owner || !provider) throw new Error("Connect wallet first");
   if (hasPrivacySessionSignature(owner)) {
     syncPrivacySessionUi();
+    closePrivacySessionModal();
     return true;
   }
   if (showIntroToast) {
@@ -384,6 +402,7 @@ async function ensurePrivacySessionSignature({
   }
   await getPrivacySignedSignature(owner, provider);
   syncPrivacySessionUi();
+  closePrivacySessionModal();
   showToast(successToast, "success", { durationMs: 3000 });
   void refreshPrivacyPoolBalance({ timeoutMs: 45000 });
   return true;
@@ -569,6 +588,7 @@ async function autoSignPrivacyOnLoad() {
     });
   } catch {
     syncPrivacySessionUi();
+    queueMicrotask(() => maybePromptPrivacySession());
     // User may reject or the wallet may require a user gesture; keep passive state.
   }
 }
@@ -869,7 +889,11 @@ function syncSendPageUi() {
   const hdr = document.getElementById("wallet-connect");
   refreshWalletConnectButtonLabel(hdr);
   const pk = getPublicKey();
-  if (!pk) invalidateWalletBalSnapshot();
+  if (!pk) {
+    invalidateWalletBalSnapshot();
+    privacySessionPromptShownForWallet = "";
+    closePrivacySessionModal();
+  }
   else {
     void withRpcRetry(async (conn) => {
       await getWalletUiBalanceMap(conn, pk);
@@ -877,6 +901,9 @@ function syncSendPageUi() {
   }
   updateSendSubmitState();
   syncPrivacySessionUi();
+  if (pk && !hasPrivacySessionSignature(pk)) {
+    queueMicrotask(() => maybePromptPrivacySession());
+  }
   void refreshWalletHoldings();
   void refreshSendAvailable();
   void refreshPrivacyPoolBalance();
@@ -1074,6 +1101,8 @@ function initPrivacyUi() {
   const privacyTopupLabel = document.getElementById("privacy-topup-label");
   const topupTokenSymbol = document.getElementById("privacy-topup-token-symbol");
   const topupTokenIcon = document.getElementById("privacy-topup-token-icon");
+  const sessionModal = document.getElementById("privacy-session-modal");
+  const sessionEnableBtn = document.getElementById("privacy-session-enable");
   if (modalAmount) bindDecimalInput(modalAmount, { maxDecimals: 18 });
 
   function getPrivacyToken() {
@@ -1107,6 +1136,24 @@ function initPrivacyUi() {
     const n = parseFloat(raw.replace(/,/g, "").trim());
     return Number.isFinite(n) ? n : 0;
   }
+
+  sessionModal?.querySelectorAll("[data-privacy-session-close]").forEach((el) => {
+    el.addEventListener("click", closePrivacySessionModal);
+  });
+  sessionEnableBtn?.addEventListener("click", async () => {
+    try {
+      const ok = await ensureWalletForAction();
+      if (!ok) return;
+      await ensurePrivacySessionSignature({
+        showIntroToast: false,
+        successToast: "Privacy Cash session enabled",
+      });
+    } catch (err) {
+      showToast(normalizePrivacyError(err, "Privacy session"), "error", {
+        durationMs: 7000,
+      });
+    }
+  });
 
   if (maxBtn && input) {
     maxBtn.addEventListener("click", async () => {
