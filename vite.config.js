@@ -32,7 +32,13 @@ export default defineConfig({
       globals: { Buffer: true, global: true, process: true },
     }),
     viteStaticCopy({
-      targets: [{ src: "assets/**/*", dest: "assets" }],
+      targets: [
+        { src: "assets/**/*", dest: "assets" },
+        {
+          src: "node_modules/privacycash/circuit2/*",
+          dest: "assets/privacycash",
+        },
+      ],
     }),
   ],
   resolve: {

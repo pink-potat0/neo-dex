@@ -61,8 +61,13 @@ const MAX_RECIPIENTS = 5;
 const PRIVACY_SIG_KEY_PREFIX = "neo-dex-privacy-sig-v1:";
 const PRIVACY_BAL_KEY_PREFIX = "neo-dex-privacy-balance-v1:";
 const PRIVACY_SIG_MESSAGE = "NEO DEX PrivacyCash session signature";
-const PRIVACY_CIRCUIT_BASE =
-  "https://raw.githubusercontent.com/Privacy-Cash/privacy-cash-sdk/main/circuit2/transaction2";
+const PRIVACY_CIRCUIT_BASE = (() => {
+  const override = String(import.meta.env.VITE_PRIVACY_CIRCUIT_BASE || "").trim();
+  if (override) return override;
+  // Use same-origin static circuit files in production so Vercel does not rely on
+  // large cross-origin GitHub downloads during the privacy proof flow.
+  return new URL("../assets/privacycash/transaction2", import.meta.url).href;
+})();
 const PRIVACY_ACTION_TIMEOUT_MS = 120000;
 const PRIVACY_BALANCE_TIMEOUT_MS = 12000;
 
