@@ -91,6 +91,7 @@ let holdingsRefreshGen = 0;
 let toastTimer = null;
 const SEND_HOLDINGS_SNAPSHOT_PREFIX = "neo-dex-send-holdings-v1:";
 let privacySdkPromise = null;
+let privacyWarmupPromise = null;
 let privacyLastKnownLamports = null;
 let privacyAutoSignAttempted = false;
 let privacyAutoSignWallet = "";
@@ -338,6 +339,11 @@ function syncPrivacySessionUi() {
 function closePrivacySessionModal() {
   const modal = document.getElementById("privacy-session-modal");
   if (modal) closePopup(modal);
+  // Allow prompting again if the user closed without completing the session signature.
+  const owner = getPublicKey();
+  if (owner && !hasPrivacySessionSignature(owner)) {
+    privacySessionPromptShownForWallet = "";
+  }
 }
 
 function maybePromptPrivacySession() {
@@ -413,6 +419,16 @@ async function loadPrivacySdk() {
     privacySdkPromise = import("privacycash/utils");
   }
   return privacySdkPromise;
+}
+
+function warmPrivacyRuntime() {
+  if (!privacyWarmupPromise) {
+    privacyWarmupPromise = Promise.all([
+      loadPrivacySdk(),
+      WasmFactory.getInstance(),
+    ]).then(() => undefined);
+  }
+  return privacyWarmupPromise;
 }
 
 function getPrivacyStorage() {
@@ -591,6 +607,34 @@ async function autoSignPrivacyOnLoad() {
     queueMicrotask(() => maybePromptPrivacySession());
     // User may reject or the wallet may require a user gesture; keep passive state.
   }
+}
+
+/**
+ * Run when the user opens the Privacy pool tab (trusted click). Many wallets only show
+ * signMessage when triggered from a user gesture, so this must not rely on page-load auto-sign alone.
+ */
+function requestPrivacySessionOnUserGesture() {
+  const owner = getPublicKey();
+  const provider = getProvider();
+  if (!owner || !provider) {
+    showToast("Connect wallet to use Privacy Cash", "info", { durationMs: 4500 });
+    syncPrivacySessionUi();
+    return;
+  }
+  if (hasPrivacySessionSignature(owner)) {
+    void warmPrivacyRuntime();
+    void refreshPrivacyPoolBalance({ timeoutMs: 45000 });
+    return;
+  }
+  void ensurePrivacySessionSignature({
+    // Keep the path to signMessage short so wallets still treat this as a user gesture.
+    showIntroToast: false,
+    successToast: "Privacy Cash enabled",
+  }).catch(() => {
+    syncPrivacySessionUi();
+    queueMicrotask(() => maybePromptPrivacySession());
+  });
+  void warmPrivacyRuntime();
 }
 
 async function pollPrivacyBalanceAfterDeposit(addedLamports) {
@@ -1070,6 +1114,9 @@ function initTabs() {
         p.getAttribute("data-send-panel") !== mode
       );
     });
+    if (mode === "privacy") {
+      requestPrivacySessionOnUserGesture();
+    }
   }
   tabs.forEach((t) => {
     t.addEventListener("click", () => {
@@ -1168,6 +1215,7 @@ function initPrivacyUi() {
     topupBtn.addEventListener("click", async () => {
       const ok = await ensureWalletForAction();
       if (!ok || !modal) return;
+      void warmPrivacyRuntime();
       if (!hasPrivacySessionSignature()) {
         try {
           await ensurePrivacySessionSignature({
@@ -1232,6 +1280,12 @@ function initPrivacyUi() {
       return showToast("Amount is too large", "error");
     }
     try {
+      if (!hasPrivacySessionSignature()) {
+        await ensurePrivacySessionSignature({
+          showIntroToast: false,
+          successToast: "Privacy Cash session enabled",
+        });
+      }
       const owner = getPublicKey();
       const hadCachedSig = owner ? !!getCachedPrivacySignature(owner) : false;
       if (!hadCachedSig) {
@@ -1241,7 +1295,9 @@ function initPrivacyUi() {
           { durationMs: 7000 }
         );
       }
-      const ctx = await buildPrivacyContext();
+      const ctx = await buildPrivacyContextWithOptions({
+        allowPromptSignature: false,
+      });
       closeTopupModal();
       if (!hadCachedSig) {
         showToast("Message signed. Now confirm the top-up transaction.", "info", {
