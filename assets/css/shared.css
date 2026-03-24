@@ -127,6 +127,11 @@ main {
   view-transition-name: neo-main;
 }
 
+.neo-topbar {
+  border-bottom-width: 0 !important;
+  box-shadow: none !important;
+}
+
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
