@@ -537,8 +537,45 @@ async function buildPrivacyContextWithOptions({
     connection,
     storage,
     keyBasePath: PRIVACY_CIRCUIT_BASE,
-    transactionSigner: async (tx) => provider.signTransaction(tx),
+    transactionSigner: async (tx) =>
+      signPrivacyTransactionWithFallback(provider, tx),
   };
+}
+
+async function signPrivacyTransactionWithFallback(provider, tx) {
+  if (!provider) throw new Error("Wallet provider unavailable");
+  const signTx = provider.signTransaction?.bind(provider);
+  const signAll = provider.signAllTransactions?.bind(provider);
+
+  if (typeof signTx !== "function" && typeof signAll !== "function") {
+    throw new Error("Connected wallet cannot sign transactions");
+  }
+
+  const SIGN_TIMEOUT_MS = 25000;
+
+  const withSignTimeout = async (promise) =>
+    withTimeout(promise, SIGN_TIMEOUT_MS, "Wallet signature");
+
+  if (typeof signTx === "function") {
+    try {
+      const signed = await withSignTimeout(signTx(tx));
+      if (signed) return signed;
+    } catch (err) {
+      const message = String(err?.message || err || "");
+      const isUserRejected =
+        /reject|denied|cancel|decline|user rejected/i.test(message);
+      if (isUserRejected) throw err;
+      // Fall through to signAllTransactions if available.
+    }
+  }
+
+  if (typeof signAll === "function") {
+    const signedList = await withSignTimeout(signAll([tx]));
+    const first = Array.isArray(signedList) ? signedList[0] : null;
+    if (first) return first;
+  }
+
+  throw new Error("Wallet did not return a signed transaction");
 }
 
 function setPrivacyBalanceDisplay(text) {
