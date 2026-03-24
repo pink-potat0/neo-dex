@@ -44,6 +44,7 @@ html.dark body {
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: rgba(17, 17, 17, 0.72);
+  transition: opacity 140ms ease, transform 180ms ease;
 }
 
 html.dark .site-footer {
@@ -210,11 +211,51 @@ body.page-bridge::after { left: 7vw; bottom: 14vh; transform: rotate(18deg); }
     height: calc(4.5rem + env(safe-area-inset-bottom, 0px));
     min-height: calc(4.5rem + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    transition: transform 180ms ease, opacity 140ms ease;
   }
 
   body.neo-mobile-shell .neo-bottom-nav > a {
     padding-top: 0.35rem;
     padding-bottom: 0.35rem;
+  }
+
+  body.neo-mobile-shell.neo-keyboard-open .neo-bottom-nav {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(calc(100% + env(safe-area-inset-bottom, 0px)));
+  }
+
+  body.neo-mobile-shell.neo-keyboard-open .neo-page-main {
+    padding-bottom: 1rem !important;
+  }
+
+  body.neo-keyboard-open .site-footer {
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+
+@media (min-width: 768px) {
+  body {
+    padding-bottom: 2.25rem;
+  }
+
+  .site-footer {
+    position: fixed;
+    left: 50%;
+    bottom: 0;
+    z-index: 30;
+    transform: translateX(-50%);
+    display: inline-flex;
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 0.3rem 0.75rem 0.55rem;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    pointer-events: none;
   }
 }
 

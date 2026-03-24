@@ -34,6 +34,21 @@
     window.location.replace(nextUrl);
   }
 
+  function isMobileViewport() {
+    return window.matchMedia && window.matchMedia("(max-width: 767px)").matches;
+  }
+
+  function updateKeyboardState() {
+    if (!isMobileViewport()) {
+      document.body.classList.remove("neo-keyboard-open");
+      return;
+    }
+    var vv = window.visualViewport;
+    if (!vv) return;
+    var heightDelta = Math.max(0, window.innerHeight - vv.height);
+    document.body.classList.toggle("neo-keyboard-open", heightDelta > 120);
+  }
+
   function getPreferredTheme() {
     var saved = "";
     try {
@@ -68,12 +83,24 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     rewriteLocalLinks();
+    updateKeyboardState();
     var toggles = document.querySelectorAll("#theme-toggle");
     toggles.forEach(function (btn) {
       btn.addEventListener("click", function () {
         var next = root.classList.contains("dark") ? "light" : "dark";
         window.__neoDexApplyTheme(next);
       });
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", updateKeyboardState);
+      window.visualViewport.addEventListener("scroll", updateKeyboardState);
+    }
+    window.addEventListener("resize", updateKeyboardState);
+    document.addEventListener("focusin", function () {
+      window.requestAnimationFrame(updateKeyboardState);
+    });
+    document.addEventListener("focusout", function () {
+      window.setTimeout(updateKeyboardState, 80);
     });
   });
 

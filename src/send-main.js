@@ -298,6 +298,15 @@ function getCachedPrivacySignature(owner) {
   return null;
 }
 
+function clearCachedPrivacySignature(owner) {
+  if (!owner) return;
+  try {
+    localStorage.removeItem(privacySigStorageKey(owner.toBase58()));
+  } catch {
+    /* ignore */
+  }
+}
+
 function readCachedPrivacyBalanceLamports(owner) {
   try {
     const raw = localStorage.getItem(privacyBalStorageKey(owner.toBase58()));
@@ -562,9 +571,30 @@ async function fetchNativeWalletBalanceSol() {
 
 async function autoSignPrivacyOnLoad() {
   const owner = getPublicKey();
+  const provider = getProvider();
   syncPrivacySessionUi();
-  if (owner && getCachedPrivacySignature(owner)) {
-    void refreshPrivacyPoolBalance({ timeoutMs: 45000 });
+  if (!owner || !provider) return;
+  const walletBase58 = owner.toBase58();
+  if (privacyAutoSignAttempted && privacyAutoSignWallet === walletBase58) return;
+  privacyAutoSignAttempted = true;
+  privacyAutoSignWallet = walletBase58;
+  if (privacySessionPromptShownForWallet === walletBase58) return;
+  privacySessionPromptShownForWallet = walletBase58;
+  clearCachedPrivacySignature(owner);
+  try {
+    await ensurePrivacySessionSignature({
+      showIntroToast: false,
+      successToast: "",
+    });
+  } catch (err) {
+    const msg = String(err?.message || err || "");
+    if (!/user rejected|rejected|denied|cancel/i.test(msg)) {
+      showToast("Privacy Cash wallet sign-in was not completed", "error", {
+        durationMs: 4500,
+      });
+    }
+  } finally {
+    privacySessionPromptShownForWallet = "";
   }
 }
 
@@ -874,9 +904,15 @@ function syncSendPageUi() {
   const pk = getPublicKey();
   if (!pk) {
     invalidateWalletBalSnapshot();
+    privacyAutoSignAttempted = false;
+    privacyAutoSignWallet = "";
     privacySessionPromptShownForWallet = "";
   }
   else {
+    if (privacyAutoSignWallet !== pk.toBase58()) {
+      privacyAutoSignWallet = pk.toBase58();
+      privacyAutoSignAttempted = false;
+    }
     void withRpcRetry(async (conn) => {
       await getWalletUiBalanceMap(conn, pk);
     }).catch(() => {});
@@ -886,6 +922,9 @@ function syncSendPageUi() {
   void refreshWalletHoldings();
   void refreshSendAvailable();
   void refreshPrivacyPoolBalance();
+  if (pk) {
+    void autoSignPrivacyOnLoad();
+  }
 }
 
 function updateSendSubmitState() {
@@ -1511,7 +1550,7 @@ function initRecipients() {
     );
   }
 
-  function autoSplitFromTopAmount() {
+  function autoSplitFromTopAmount({ syncTop = true } = {}) {
     const allRows = rows();
     if (!selectedToken) return;
     if (allRows.length <= 1) {
@@ -1544,7 +1583,9 @@ function initRecipients() {
         false
       );
     });
-    syncTopAmountFromRows();
+    if (syncTop) {
+      syncTopAmountFromRows();
+    }
   }
 
   function redistributeRemovedAmount(removedAtomic) {
@@ -1657,7 +1698,7 @@ function initRecipients() {
       setTopAmountValue(totalBefore > 0n ? formatAtomicAmount(totalBefore) : "");
     }
     if (shouldAutoSplit) {
-      autoSplitFromTopAmount();
+      autoSplitFromTopAmount({ syncTop: true });
     } else {
       syncTopAmountFromRows();
     }
@@ -1678,11 +1719,11 @@ function initRecipients() {
       syncRemoveButtons();
       return;
     }
-    autoSplitFromTopAmount();
+    autoSplitFromTopAmount({ syncTop: false });
     syncRemoveButtons();
   });
   syncSingleRowFromTopAmount();
-  autoSplitFromTopAmount();
+  autoSplitFromTopAmount({ syncTop: true });
   syncRemoveButtons();
 }
 
