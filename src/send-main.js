@@ -92,6 +92,7 @@ let toastTimer = null;
 const SEND_HOLDINGS_SNAPSHOT_PREFIX = "neo-dex-send-holdings-v1:";
 let privacySdkPromise = null;
 let privacyWarmupPromise = null;
+let privacyCircuitPreloadPromise = null;
 let privacyLastKnownLamports = null;
 let privacyAutoSignAttempted = false;
 let privacyAutoSignWallet = "";
@@ -411,11 +412,36 @@ async function loadPrivacySdk() {
   return privacySdkPromise;
 }
 
+function preloadPrivacyCircuitAssets() {
+  if (!privacyCircuitPreloadPromise) {
+    const files = [
+      PRIVACY_CIRCUIT_BASE + ".wasm",
+      PRIVACY_CIRCUIT_BASE + ".zkey",
+    ];
+    privacyCircuitPreloadPromise = Promise.all(
+      files.map(async (url) => {
+        const res = await fetch(url, { cache: "force-cache" });
+        if (!res.ok) {
+          throw new Error("Could not load Privacy Cash circuit files");
+        }
+        await res.arrayBuffer();
+      })
+    )
+      .then(() => undefined)
+      .catch((err) => {
+        privacyCircuitPreloadPromise = null;
+        throw err;
+      });
+  }
+  return privacyCircuitPreloadPromise;
+}
+
 function warmPrivacyRuntime() {
   if (!privacyWarmupPromise) {
     privacyWarmupPromise = Promise.all([
       loadPrivacySdk(),
       WasmFactory.getInstance(),
+      preloadPrivacyCircuitAssets(),
     ]).then(() => undefined);
   }
   return privacyWarmupPromise;
@@ -602,7 +628,7 @@ async function autoSignPrivacyOnLoad() {
  * Run when the user opens the Privacy pool tab (trusted click). Many wallets only show
  * signMessage when triggered from a user gesture, so this must not rely on page-load auto-sign alone.
  */
-function requestPrivacySessionOnUserGesture() {
+  function requestPrivacySessionOnUserGesture() {
   void warmPrivacyRuntime();
 }
 
@@ -1165,9 +1191,24 @@ function initPrivacyUi() {
         { durationMs: 6500 }
       );
     }
+    showToast(
+      "Preparing Privacy Cash proof. Wallet approval comes next.",
+      "info",
+      { noAutoDismiss: true }
+    );
+    await warmPrivacyRuntime();
     const ctx = await buildPrivacyContextWithOptions({
       allowPromptSignature: true,
     });
+    const baseTransactionSigner = ctx.transactionSigner;
+    ctx.transactionSigner = async (tx) => {
+      showToast(
+        "Approve the " + actionLabel + " transaction in your wallet.",
+        "info",
+        { noAutoDismiss: true }
+      );
+      return baseTransactionSigner(tx);
+    };
     if (!hadCachedSig) {
       showToast("Message signed. Now confirm the " + actionLabel + " transaction.", "info", {
         durationMs: 4500,
@@ -1189,7 +1230,7 @@ function initPrivacyUi() {
     topupBtn.addEventListener("click", async () => {
       const ok = await ensureWalletForAction();
       if (!ok || !modal) return;
-      void warmPrivacyRuntime();
+      void warmPrivacyRuntime().catch(() => {});
       if (modalAmount) modalAmount.value = (input?.value || "").trim();
       if (modalWalletBal) {
         modalWalletBal.textContent = "Loading...";
@@ -1242,7 +1283,9 @@ function initPrivacyUi() {
     try {
       const ctx = await buildPrivacyActionContext("top up");
       closeTopupModal();
-      showToast("Depositing to Privacy Cash...", "info", { noAutoDismiss: true });
+      showToast("Submitting deposit to Privacy Cash...", "info", {
+        noAutoDismiss: true,
+      });
       const out = await withTimeout(
         ctx.sdk.deposit({
           lightWasm: ctx.lightWasm,
