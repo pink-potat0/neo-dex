@@ -12,8 +12,8 @@
 <link rel="stylesheet" href="../assets/css/shared.css"/>
 <link rel="icon" type="image/png" href="../favicon.png"/>
 </head>
-<body class="page-bridge bg-surface text-on-surface">
-<header class="fixed top-0 w-full border-b-4 border-black dark:border-white z-50 bg-white dark:bg-black/80 backdrop-blur-md shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex justify-between items-center px-6 h-20">
+<body class="page-bridge neo-mobile-shell bg-surface text-on-surface">
+<header class="neo-topbar fixed top-0 w-full border-b-4 border-black dark:border-white z-50 bg-white dark:bg-black/80 backdrop-blur-md shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex justify-between items-center px-6 h-20">
 <a class="flex items-center gap-3" href="/">
 <h1 class="text-2xl font-bold tracking-tighter text-black dark:text-white uppercase font-['Space_Grotesk']">NEO DEX</h1>
 </a>
@@ -28,7 +28,7 @@
 <button type="button" id="theme-toggle" class="material-symbols-outlined text-black dark:text-white hover:translate-x-[2px] hover:translate-y-[2px] transition-all active:scale-95 duration-100" aria-label="Toggle dark mode">dark_mode</button>
 </div>
 </header>
-<main class="mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center px-4 pb-28 pt-[calc(8rem+env(safe-area-inset-top,0px))] md:px-8 md:pt-[calc(9rem+env(safe-area-inset-top,0px))]">
+<main class="neo-page-main mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center px-4 pb-28 pt-[calc(8rem+env(safe-area-inset-top,0px))] md:px-8 md:pt-[calc(9rem+env(safe-area-inset-top,0px))]">
 <div class="flex w-full max-w-[480px] flex-col items-center space-y-8 md:max-w-[680px]">
 <!-- 1. Source / swap / destination — swap centered on circle midline -->
 <section class="relative w-full px-2 sm:px-4" aria-label="Networks">
@@ -103,7 +103,7 @@
 </div>
 <div id="bridge-toast-host" class="pointer-events-none fixed bottom-24 right-4 z-[140] flex w-[min(92vw,25rem)] flex-col gap-2"></div>
 <script type="module" src="../src/bridge-main.js"></script>
-<nav class="fixed bottom-0 left-0 z-50 flex h-16 w-full justify-around border-t-4 border-black bg-white dark:border-white dark:bg-black md:hidden">
+<nav class="neo-bottom-nav fixed bottom-0 left-0 z-50 flex h-16 w-full justify-around border-t-4 border-black bg-white dark:border-white dark:bg-black md:hidden">
 <a class="flex min-w-0 flex-1 flex-col items-center justify-center px-1 text-black opacity-70 hover:bg-[#3df5c4] hover:text-[#071a1f] dark:text-white" href="/portfolio">
 <span class="material-symbols-outlined text-[22px]">wallet</span>
 <span class="font-['Space_Grotesk'] text-[8px] font-bold uppercase leading-tight">Wallet</span>

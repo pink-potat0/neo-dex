@@ -10,10 +10,11 @@
 <script src="../assets/js/tailwind-config.js"></script>
 <script src="../assets/js/theme.js"></script>
 <link rel="stylesheet" href="../assets/css/shared.css"/>
+<link rel="stylesheet" href="../assets/css/extracted-inline.css"/>
 <link rel="icon" type="image/png" href="../favicon.png"/>
 </head>
-<body class="page-wallet bg-surface text-on-surface">
-<header class="fixed top-0 w-full border-b-4 border-black dark:border-white z-50 bg-white dark:bg-black/80 backdrop-blur-md shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex justify-between items-center px-6 h-20">
+<body class="page-wallet neo-mobile-shell bg-surface text-on-surface">
+<header class="neo-topbar fixed top-0 w-full border-b-4 border-black dark:border-white z-50 bg-white dark:bg-black/80 backdrop-blur-md shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex justify-between items-center px-6 h-20">
 <a class="flex items-center gap-3" href="/">
 <h1 class="text-2xl font-bold tracking-tighter text-black dark:text-white uppercase font-['Space_Grotesk']">NEO DEX</h1>
 </a>
@@ -28,15 +29,15 @@
 <button type="button" id="theme-toggle" class="material-symbols-outlined text-black dark:text-white hover:translate-x-[2px] hover:translate-y-[2px] transition-all active:scale-95 duration-100" aria-label="Toggle dark mode">dark_mode</button>
 </div>
 </header>
-<main class="mx-auto max-w-7xl px-4 pb-28 pt-[calc(8rem+env(safe-area-inset-top,0px))] md:px-8 md:pt-[calc(9rem+env(safe-area-inset-top,0px))]">
+<main class="neo-page-main mx-auto max-w-7xl px-4 pb-28 pt-[calc(8rem+env(safe-area-inset-top,0px))] md:px-8 md:pt-[calc(9rem+env(safe-area-inset-top,0px))]">
 <section class="mb-12">
 <div class="bg-primary-container border-4 border-black p-8 shadow-[8px_8px_0px_0px_rgba(0,0,0,1)] relative overflow-hidden">
 <div class="absolute top-0 right-0 w-48 h-48 bg-white opacity-10 -mr-20 -mt-20 rotate-45"></div>
-<div class="hero-wave pointer-events-none absolute inset-0 opacity-60" style="background:radial-gradient(circle at 100% 50%, transparent 0 10%, rgba(0,0,0,0.34) 10% 15%, transparent 15% 100%),radial-gradient(circle at 100% 50%, transparent 0 22%, rgba(0,0,0,0.28) 22% 27%, transparent 27% 100%),radial-gradient(circle at 100% 50%, transparent 0 34%, rgba(0,0,0,0.24) 34% 39%, transparent 39% 100%),radial-gradient(circle at 100% 50%, transparent 0 46%, rgba(0,0,0,0.2) 46% 51%, transparent 51% 100%),radial-gradient(circle at 100% 50%, transparent 0 58%, rgba(0,0,0,0.14) 58% 63%, transparent 63% 100%);"></div>
+<div class="hero-wave portfolio-hero-wave pointer-events-none absolute inset-0 opacity-60"></div>
 <div class="relative z-10">
 <p class="mb-2 text-sm font-bold uppercase tracking-widest text-on-primary-container">Portfolio</p>
-<h2 id="home-portfolio-usd" class="text-5xl font-bold tracking-tighter text-black md:text-7xl" style="color:#000!important;">...</h2>
-<p id="home-primary-balance" class="mt-2 text-lg font-bold tracking-tight text-black md:text-xl" style="color:#000!important;">...</p>
+<h2 id="home-portfolio-usd" class="portfolio-balance-strong text-5xl font-bold tracking-tighter text-black md:text-7xl">...</h2>
+<p id="home-primary-balance" class="portfolio-balance-strong mt-2 text-lg font-bold tracking-tight text-black md:text-xl">...</p>
 <div class="mt-4 flex flex-wrap items-center gap-2 sm:gap-3">
 <div class="flex items-center gap-2 border-2 border-black bg-black px-3 py-1 text-xs font-bold uppercase tracking-tighter text-white">
 <span class="material-symbols-outlined text-sm">link</span>
@@ -73,7 +74,7 @@
 </div>
 </main>
 <footer class="site-footer">&copy; pinkpotato 2026</footer>
-<nav class="md:hidden fixed bottom-0 left-0 z-50 flex h-16 w-full justify-around border-t-4 border-black bg-white dark:border-white dark:bg-black">
+<nav class="neo-bottom-nav md:hidden fixed bottom-0 left-0 z-50 flex h-16 w-full justify-around border-t-4 border-black bg-white dark:border-white dark:bg-black">
 <a class="flex min-w-0 flex-1 flex-col items-center justify-center border-x-2 border-black bg-[#9b4dff] px-1 text-white" href="/portfolio">
 <span class="material-symbols-outlined text-[22px]">wallet</span>
 <span class="font-['Space_Grotesk'] text-[8px] font-bold uppercase leading-tight">Wallet</span>

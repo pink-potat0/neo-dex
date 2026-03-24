@@ -1,3 +1,9 @@
+html {
+  min-height: 100%;
+  overflow-x: clip;
+  overscroll-behavior-y: none;
+}
+
 body {
   font-family: "Space Grotesk", sans-serif;
   background-color: #f6f6f6;
@@ -10,7 +16,9 @@ body {
     radial-gradient(circle at 83% 84%, rgba(61, 110, 245, 0.08) 0 1.75rem, transparent 1.85rem);
   background-size: 34px 34px, 34px 34px, auto, auto, auto, auto;
   background-repeat: repeat, repeat, no-repeat, no-repeat, no-repeat, no-repeat;
-  min-height: max(884px, 100dvh);
+  min-height: max(884px, 100svh);
+  overflow-x: clip;
+  overscroll-behavior-y: none;
 }
 
 html.dark body {
@@ -176,6 +184,38 @@ body.page-bridge::after { left: 7vw; bottom: 14vh; transform: rotate(18deg); }
     opacity: 0.26;
     transform: scale(0.8);
   }
+
+  body.neo-mobile-shell {
+    min-height: 100svh;
+  }
+
+  body.neo-mobile-shell .neo-topbar {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: 1rem;
+    padding-right: 1rem;
+    height: calc(4rem + env(safe-area-inset-top, 0px));
+    min-height: calc(4rem + env(safe-area-inset-top, 0px));
+  }
+
+  body.neo-mobile-shell .neo-page-main {
+    min-height: 100svh !important;
+    padding-top: calc(5rem + env(safe-area-inset-top, 0px)) !important;
+    padding-bottom: calc(5.75rem + env(safe-area-inset-bottom, 0px)) !important;
+    scroll-padding-top: calc(5rem + env(safe-area-inset-top, 0px));
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body.neo-mobile-shell .neo-bottom-nav {
+    height: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+    min-height: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  body.neo-mobile-shell .neo-bottom-nav > a {
+    padding-top: 0.35rem;
+    padding-bottom: 0.35rem;
+  }
 }
 
 /* Smooth page/card/popup motion. */
@@ -296,6 +336,12 @@ main > section {
   nav.fixed.bottom-0 {
     padding-bottom: env(safe-area-inset-bottom);
     min-height: calc(4rem + env(safe-area-inset-bottom));
+  }
+
+  @media (max-width: 767px) {
+    body.neo-mobile-shell .neo-topbar {
+      min-height: calc(4rem + env(safe-area-inset-top)) !important;
+    }
   }
 }
 

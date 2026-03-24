@@ -324,37 +324,18 @@ function hasPrivacySessionSignature(owner = getPublicKey()) {
 function syncPrivacySessionUi() {
   const topupLabel = document.getElementById("privacy-topup-label");
   const topupBtn = document.querySelector("[data-privacy-topup]");
-  const hasSession = hasPrivacySessionSignature();
-  if (topupLabel) topupLabel.textContent = hasSession ? "Top up" : "Enable";
+  if (topupLabel) topupLabel.textContent = "Top up";
   if (topupBtn) {
-    topupBtn.setAttribute(
-      "title",
-      hasSession
-        ? "Top up your private balance"
-        : "Enable Privacy Cash by signing a one-time session message"
-    );
+    topupBtn.setAttribute("title", "Top up your private balance");
   }
 }
 
 function closePrivacySessionModal() {
-  const modal = document.getElementById("privacy-session-modal");
-  if (modal) closePopup(modal);
-  // Allow prompting again if the user closed without completing the session signature.
-  const owner = getPublicKey();
-  if (owner && !hasPrivacySessionSignature(owner)) {
-    privacySessionPromptShownForWallet = "";
-  }
+  privacySessionPromptShownForWallet = "";
 }
 
 function maybePromptPrivacySession() {
-  const owner = getPublicKey();
-  if (!owner || hasPrivacySessionSignature(owner)) return;
-  const wallet = owner.toBase58();
-  if (privacySessionPromptShownForWallet === wallet) return;
-  const modal = document.getElementById("privacy-session-modal");
-  if (!modal) return;
-  privacySessionPromptShownForWallet = wallet;
-  openPopup(modal);
+  privacySessionPromptShownForWallet = "";
 }
 
 async function getPrivacySignedSignature(owner, provider) {
@@ -391,25 +372,25 @@ async function getPrivacySignedSignature(owner, provider) {
 
 async function ensurePrivacySessionSignature({
   showIntroToast = true,
-  successToast = "Privacy Cash enabled",
+  successToast = "Privacy Cash ready",
 } = {}) {
   const owner = getPublicKey();
   const provider = getProvider();
   if (!owner || !provider) throw new Error("Connect wallet first");
   if (hasPrivacySessionSignature(owner)) {
     syncPrivacySessionUi();
-    closePrivacySessionModal();
     return true;
   }
   if (showIntroToast) {
-    showToast("Enable Privacy Cash: confirm the one-time message signature", "info", {
+    showToast("Confirm the Privacy Cash message in your wallet", "info", {
       durationMs: 5000,
     });
   }
   await getPrivacySignedSignature(owner, provider);
   syncPrivacySessionUi();
-  closePrivacySessionModal();
-  showToast(successToast, "success", { durationMs: 3000 });
+  if (successToast) {
+    showToast(successToast, "success", { durationMs: 3000 });
+  }
   void refreshPrivacyPoolBalance({ timeoutMs: 45000 });
   return true;
 }
@@ -474,7 +455,7 @@ async function buildPrivacyContextWithOptions({
     ? await getPrivacySignedSignature(owner, provider)
     : getCachedPrivacySignature(owner);
   if (!sig) {
-    throw new Error("Sign message once to enable Privacy Cash");
+    throw new Error("Sign the Privacy Cash message in your wallet to continue");
   }
   encryptionService.deriveEncryptionKeyFromSignature(sig);
   const connection = await withRpcRetry(async (conn) => {
@@ -528,7 +509,7 @@ async function refreshPrivacyPoolBalance({
   }
   if (!getCachedPrivacySignature(owner)) {
     if (privacyLastKnownLamports == null) {
-      setPrivacyBalanceDisplay("Sign to load");
+      setPrivacyBalanceDisplay("Tap top up or send");
     }
     syncPrivacySessionUi();
     return null;
@@ -581,31 +562,9 @@ async function fetchNativeWalletBalanceSol() {
 
 async function autoSignPrivacyOnLoad() {
   const owner = getPublicKey();
-  const provider = getProvider();
-  if (!owner || !provider) {
-    syncPrivacySessionUi();
-    return;
-  }
-  const owner58 = owner.toBase58();
-  if (privacyAutoSignWallet !== owner58) {
-    privacyAutoSignWallet = owner58;
-    privacyAutoSignAttempted = false;
-  }
-  if (privacyAutoSignAttempted) return;
-  privacyAutoSignAttempted = true;
-  if (getCachedPrivacySignature(owner)) {
+  syncPrivacySessionUi();
+  if (owner && getCachedPrivacySignature(owner)) {
     void refreshPrivacyPoolBalance({ timeoutMs: 45000 });
-    return;
-  }
-  try {
-    await ensurePrivacySessionSignature({
-      showIntroToast: true,
-      successToast: "Privacy Cash enabled",
-    });
-  } catch {
-    syncPrivacySessionUi();
-    queueMicrotask(() => maybePromptPrivacySession());
-    // User may reject or the wallet may require a user gesture; keep passive state.
   }
 }
 
@@ -614,26 +573,6 @@ async function autoSignPrivacyOnLoad() {
  * signMessage when triggered from a user gesture, so this must not rely on page-load auto-sign alone.
  */
 function requestPrivacySessionOnUserGesture() {
-  const owner = getPublicKey();
-  const provider = getProvider();
-  if (!owner || !provider) {
-    showToast("Connect wallet to use Privacy Cash", "info", { durationMs: 4500 });
-    syncPrivacySessionUi();
-    return;
-  }
-  if (hasPrivacySessionSignature(owner)) {
-    void warmPrivacyRuntime();
-    void refreshPrivacyPoolBalance({ timeoutMs: 45000 });
-    return;
-  }
-  void ensurePrivacySessionSignature({
-    // Keep the path to signMessage short so wallets still treat this as a user gesture.
-    showIntroToast: false,
-    successToast: "Privacy Cash enabled",
-  }).catch(() => {
-    syncPrivacySessionUi();
-    queueMicrotask(() => maybePromptPrivacySession());
-  });
   void warmPrivacyRuntime();
 }
 
@@ -936,7 +875,6 @@ function syncSendPageUi() {
   if (!pk) {
     invalidateWalletBalSnapshot();
     privacySessionPromptShownForWallet = "";
-    closePrivacySessionModal();
   }
   else {
     void withRpcRetry(async (conn) => {
@@ -945,9 +883,6 @@ function syncSendPageUi() {
   }
   updateSendSubmitState();
   syncPrivacySessionUi();
-  if (pk && !hasPrivacySessionSignature(pk)) {
-    queueMicrotask(() => maybePromptPrivacySession());
-  }
   void refreshWalletHoldings();
   void refreshSendAvailable();
   void refreshPrivacyPoolBalance();
@@ -1114,9 +1049,6 @@ function initTabs() {
         p.getAttribute("data-send-panel") !== mode
       );
     });
-    if (mode === "privacy") {
-      requestPrivacySessionOnUserGesture();
-    }
   }
   tabs.forEach((t) => {
     t.addEventListener("click", () => {
@@ -1148,8 +1080,6 @@ function initPrivacyUi() {
   const privacyTopupLabel = document.getElementById("privacy-topup-label");
   const topupTokenSymbol = document.getElementById("privacy-topup-token-symbol");
   const topupTokenIcon = document.getElementById("privacy-topup-token-icon");
-  const sessionModal = document.getElementById("privacy-session-modal");
-  const sessionEnableBtn = document.getElementById("privacy-session-enable");
   if (modalAmount) bindDecimalInput(modalAmount, { maxDecimals: 18 });
 
   function getPrivacyToken() {
@@ -1184,23 +1114,28 @@ function initPrivacyUi() {
     return Number.isFinite(n) ? n : 0;
   }
 
-  sessionModal?.querySelectorAll("[data-privacy-session-close]").forEach((el) => {
-    el.addEventListener("click", closePrivacySessionModal);
-  });
-  sessionEnableBtn?.addEventListener("click", async () => {
-    try {
-      const ok = await ensureWalletForAction();
-      if (!ok) return;
-      await ensurePrivacySessionSignature({
-        showIntroToast: false,
-        successToast: "Privacy Cash session enabled",
-      });
-    } catch (err) {
-      showToast(normalizePrivacyError(err, "Privacy session"), "error", {
-        durationMs: 7000,
+  async function buildPrivacyActionContext(actionLabel) {
+    const owner = getPublicKey();
+    const hadCachedSig = owner ? !!getCachedPrivacySignature(owner) : false;
+    if (!hadCachedSig) {
+      showToast(
+        "Confirm the Privacy Cash message first, then approve the " +
+          actionLabel +
+          " transaction.",
+        "info",
+        { durationMs: 6500 }
+      );
+    }
+    const ctx = await buildPrivacyContextWithOptions({
+      allowPromptSignature: true,
+    });
+    if (!hadCachedSig) {
+      showToast("Message signed. Now confirm the " + actionLabel + " transaction.", "info", {
+        durationMs: 4500,
       });
     }
-  });
+    return ctx;
+  }
 
   if (maxBtn && input) {
     maxBtn.addEventListener("click", async () => {
@@ -1216,19 +1151,6 @@ function initPrivacyUi() {
       const ok = await ensureWalletForAction();
       if (!ok || !modal) return;
       void warmPrivacyRuntime();
-      if (!hasPrivacySessionSignature()) {
-        try {
-          await ensurePrivacySessionSignature({
-            showIntroToast: true,
-            successToast: "Privacy Cash session enabled",
-          });
-        } catch (err) {
-          showToast(normalizePrivacyError(err, "Privacy session"), "error", {
-            durationMs: 7000,
-          });
-          return;
-        }
-      }
       if (modalAmount) modalAmount.value = (input?.value || "").trim();
       if (modalWalletBal) {
         modalWalletBal.textContent = "Loading...";
@@ -1242,7 +1164,6 @@ function initPrivacyUi() {
         }
       }
       openPopup(modal);
-      if (modalAmount) requestAnimationFrame(() => modalAmount.focus());
     });
   }
 
@@ -1280,30 +1201,8 @@ function initPrivacyUi() {
       return showToast("Amount is too large", "error");
     }
     try {
-      if (!hasPrivacySessionSignature()) {
-        await ensurePrivacySessionSignature({
-          showIntroToast: false,
-          successToast: "Privacy Cash session enabled",
-        });
-      }
-      const owner = getPublicKey();
-      const hadCachedSig = owner ? !!getCachedPrivacySignature(owner) : false;
-      if (!hadCachedSig) {
-        showToast(
-          "One-time step: sign message to enable Privacy Cash. Transaction prompt comes next.",
-          "info",
-          { durationMs: 7000 }
-        );
-      }
-      const ctx = await buildPrivacyContextWithOptions({
-        allowPromptSignature: false,
-      });
+      const ctx = await buildPrivacyActionContext("top up");
       closeTopupModal();
-      if (!hadCachedSig) {
-        showToast("Message signed. Now confirm the top-up transaction.", "info", {
-          durationMs: 4500,
-        });
-      }
       showToast("Depositing to Privacy Cash...", "info", { noAutoDismiss: true });
       const out = await withTimeout(
         ctx.sdk.deposit({
@@ -1372,34 +1271,8 @@ function initPrivacyUi() {
     if (amountAtomic > BigInt(Number.MAX_SAFE_INTEGER)) {
       return showToast("Amount is too large", "error");
     }
-    if (!hasPrivacySessionSignature()) {
-      try {
-        await ensurePrivacySessionSignature({
-          showIntroToast: true,
-          successToast: "Privacy Cash session enabled",
-        });
-      } catch (err) {
-        return showToast(normalizePrivacyError(err, "Privacy session"), "error", {
-          durationMs: 7000,
-        });
-      }
-    }
     try {
-      const owner = getPublicKey();
-      const hadCachedSig = owner ? !!getCachedPrivacySignature(owner) : false;
-      if (!hadCachedSig) {
-        showToast(
-          "One-time step: sign message to enable Privacy Cash. Transaction prompt comes next.",
-          "info",
-          { durationMs: 7000 }
-        );
-      }
-      const ctx = await buildPrivacyContext();
-      if (!hadCachedSig) {
-        showToast("Message signed. Now confirm the private send transaction.", "info", {
-          durationMs: 4500,
-        });
-      }
+      const ctx = await buildPrivacyActionContext("private send");
       showToast("Submitting Privacy Cash withdrawal...", "info", {
         noAutoDismiss: true,
       });
@@ -1549,77 +1422,176 @@ function initRecipients() {
     syncingTopAmount = false;
   }
 
-  function syncTopAmountFromRows() {
-    const allRows = rows();
-    if (allRows.length <= 1 || !selectedToken) return;
-    let totalAtomic = 0n;
-    let filled = 0;
-    for (const row of allRows) {
-      const input = row.querySelector(".send-recipient-amount");
-      const ui = String(input?.value || "").trim();
-      if (!ui) continue;
-      const atomic = parseUiAmountToAtomic(ui, selectedToken.decimals);
-      if (!atomic) return;
-      totalAtomic += atomic;
-      filled += 1;
-    }
-    if (!filled) return;
-    setTopAmountValue(
-      formatAmountForInput(
-        atomicToUiNumber(totalAtomic, selectedToken.decimals),
-        selectedToken.decimals
-      )
+  function recipientAmountInput(row) {
+    return row?.querySelector(".send-recipient-amount") || null;
+  }
+
+  function setRowAmountValue(input, nextValue, manual = false) {
+    if (!input) return;
+    input.value = nextValue;
+    input.dataset.manual = manual ? "1" : "0";
+  }
+
+  function parseAmountAtomic(input) {
+    if (!input || !selectedToken) return 0n;
+    const ui = String(input.value || "").trim();
+    if (!ui) return 0n;
+    const atomic = parseUiAmountToAtomic(ui, selectedToken.decimals);
+    return atomic && atomic > 0n ? atomic : 0n;
+  }
+
+  function formatAtomicAmount(amountAtomic) {
+    return formatAmountForInput(
+      atomicToUiNumber(amountAtomic, selectedToken.decimals),
+      selectedToken.decimals
     );
   }
 
-  function autoSplitFromTopAmount() {
-    const amountTop = (document.getElementById("send-amount")?.value || "").trim();
+  function syncRowIndices() {
+    rows().forEach((row, idx) => {
+      row.dataset.recipientIndex = String(idx);
+    });
+  }
+
+  function syncSingleRowFromTopAmount() {
     const allRows = rows();
-    if (!amountTop || allRows.length <= 1 || !selectedToken) return;
-    const totalAtomic = parseUiAmountToAtomic(amountTop, selectedToken.decimals);
-    if (!totalAtomic || totalAtomic <= 0n) return;
-    const n = BigInt(allRows.length);
-    const base = totalAtomic / n;
-    const rem = totalAtomic % n;
-    if (base <= 0n) return;
-    allRows.forEach((row, idx) => {
-      const input = row.querySelector(".send-recipient-amount");
-      if (!input) return;
-      const isManual = input.dataset.manual === "1";
-      if (isManual && String(input.value || "").trim()) return;
-      const rowAtomic = base + (idx === 0 ? rem : 0n);
-      input.value = formatAmountForInput(
-        Number(rowAtomic) / Math.pow(10, selectedToken.decimals),
-        selectedToken.decimals
+    if (!selectedToken || allRows.length !== 1) return;
+    const amountInput = recipientAmountInput(allRows[0]);
+    const topValue = String(
+      document.getElementById("send-amount")?.value || ""
+    ).trim();
+    setRowAmountValue(amountInput, topValue, false);
+  }
+
+  function hasManualRecipientAmounts() {
+    return rows().some((row) => {
+      const input = recipientAmountInput(row);
+      return (
+        String(input?.value || "").trim() &&
+        String(input?.dataset.manual || "") === "1"
       );
     });
   }
 
-  function sumRowUiAmounts() {
-    let total = 0;
-    for (const row of rows()) {
-      const amt = row.querySelector(".send-recipient-amount");
-      const n = parseFloat((amt?.value || "").trim());
-      if (Number.isFinite(n) && n > 0) total += n;
+  function currentTotalAtomic() {
+    if (!selectedToken) return 0n;
+    const allRows = rows();
+    if (allRows.length <= 1) {
+      const topUi = String(document.getElementById("send-amount")?.value || "").trim();
+      const topAtomic = parseUiAmountToAtomic(topUi, selectedToken.decimals);
+      return topAtomic && topAtomic > 0n ? topAtomic : 0n;
     }
-    return total;
+    return allRows.reduce(
+      (sum, row) => sum + parseAmountAtomic(recipientAmountInput(row)),
+      0n
+    );
+  }
+
+  function syncTopAmountFromRows() {
+    const allRows = rows();
+    if (!selectedToken) return;
+    if (allRows.length <= 1) {
+      syncSingleRowFromTopAmount();
+      return;
+    }
+    const totalAtomic = allRows.reduce((sum, row) => {
+      const input = row.querySelector(".send-recipient-amount");
+      const ui = String(input?.value || "").trim();
+      if (!ui) return sum;
+      const atomic = parseUiAmountToAtomic(ui, selectedToken.decimals);
+      return atomic && atomic > 0n ? sum + atomic : sum;
+    }, 0n);
+    setTopAmountValue(
+      totalAtomic > 0n
+        ? formatAmountForInput(
+            atomicToUiNumber(totalAtomic, selectedToken.decimals),
+            selectedToken.decimals
+          )
+        : ""
+    );
+  }
+
+  function autoSplitFromTopAmount() {
+    const allRows = rows();
+    if (!selectedToken) return;
+    if (allRows.length <= 1) {
+      syncSingleRowFromTopAmount();
+      return;
+    }
+    const amountTop = String(document.getElementById("send-amount")?.value || "").trim();
+    if (!amountTop) {
+      allRows.forEach((row) => {
+        setRowAmountValue(recipientAmountInput(row), "", false);
+      });
+      return;
+    }
+    const totalAtomic = parseUiAmountToAtomic(amountTop, selectedToken.decimals);
+    if (!totalAtomic || totalAtomic <= 0n) {
+      allRows.forEach((row) => {
+        setRowAmountValue(recipientAmountInput(row), "", false);
+      });
+      setTopAmountValue("");
+      return;
+    }
+    const count = BigInt(allRows.length);
+    const base = totalAtomic / count;
+    const rem = totalAtomic % count;
+    allRows.forEach((row, idx) => {
+      const rowAtomic = base + (idx === 0 ? rem : 0n);
+      setRowAmountValue(
+        recipientAmountInput(row),
+        rowAtomic > 0n ? formatAtomicAmount(rowAtomic) : "",
+        false
+      );
+    });
+    syncTopAmountFromRows();
+  }
+
+  function redistributeRemovedAmount(removedAtomic) {
+    const remainingRows = rows();
+    if (!selectedToken || removedAtomic <= 0n || !remainingRows.length) return;
+    if (remainingRows.length === 1) {
+      const remainingAtomic = parseAmountAtomic(
+        recipientAmountInput(remainingRows[0])
+      );
+      const nextTotal = remainingAtomic + removedAtomic;
+      setTopAmountValue(nextTotal > 0n ? formatAtomicAmount(nextTotal) : "");
+      syncSingleRowFromTopAmount();
+      return;
+    }
+    const count = BigInt(remainingRows.length);
+    const base = removedAtomic / count;
+    const rem = removedAtomic % count;
+    remainingRows.forEach((row, idx) => {
+      const amountInput = recipientAmountInput(row);
+      const nextAtomic =
+        parseAmountAtomic(amountInput) + base + (idx === 0 ? rem : 0n);
+      setRowAmountValue(
+        amountInput,
+        nextAtomic > 0n ? formatAtomicAmount(nextAtomic) : "",
+        true
+      );
+    });
+    syncTopAmountFromRows();
   }
 
   function syncRemoveButtons() {
     const r = rows();
-    autoSplitFromTopAmount();
-    syncTopAmountFromRows();
+    syncRowIndices();
     const labelEl = document.getElementById("send-recipients-field-label");
     if (labelEl) labelEl.textContent = r.length > 1 ? "Recipients" : "Recipient";
     const hint = document.getElementById("send-recipient-hint");
     if (hint) {
-      const totalUi = sumRowUiAmounts();
+      const totalAtomic = currentTotalAtomic();
+      const activeRecipients = r.filter(
+        (row) => parseAmountAtomic(recipientAmountInput(row)) > 0n
+      ).length;
       hint.textContent =
         "Up to " +
         MAX_RECIPIENTS +
         " recipients · auto-split available for 2+ wallets · total debit: " +
-        (totalUi > 0
-          ? formatAmountForInput(totalUi, selectedToken?.decimals || 9) +
+        (totalAtomic > 0n && selectedToken
+          ? formatAtomicAmount(totalAtomic) +
             " " +
             (selectedToken?.symbol || "")
           : "—") +
@@ -1632,10 +1604,13 @@ function initRecipients() {
     r.forEach((row) => {
       const btn = row.querySelector(".send-recipient-remove");
       if (btn) btn.classList.toggle("hidden", !multi);
-      const amountWrap = row.querySelector(".send-recipient-amount")?.parentElement;
+      const amountWrap = recipientAmountInput(row)?.parentElement;
       if (amountWrap) amountWrap.classList.toggle("hidden", !multi);
       row.classList.toggle("items-center", !multi);
     });
+    if (!multi) {
+      syncSingleRowFromTopAmount();
+    }
     const atMax = r.length >= MAX_RECIPIENTS;
     addBtn.disabled = atMax;
     addBtn.setAttribute("aria-disabled", atMax ? "true" : "false");
@@ -1646,17 +1621,19 @@ function initRecipients() {
   function bindRemoveRow(row) {
     row.querySelector(".send-recipient-remove")?.addEventListener("click", () => {
       if (rows().length <= 1) return;
+      const removedAtomic = parseAmountAtomic(recipientAmountInput(row));
       row.remove();
+      redistributeRemovedAmount(removedAtomic);
       syncRemoveButtons();
     });
   }
 
   function bindAmountRow(row) {
-    const amountInput = row.querySelector(".send-recipient-amount");
+    const amountInput = recipientAmountInput(row);
     if (!amountInput) return;
     bindDecimalInput(amountInput, { maxDecimals: 18 });
     amountInput.addEventListener("input", () => {
-      amountInput.dataset.manual = "1";
+      amountInput.dataset.manual = String(amountInput.value || "").trim() ? "1" : "0";
       syncTopAmountFromRows();
       syncRemoveButtons();
     });
@@ -1664,18 +1641,26 @@ function initRecipients() {
 
   addBtn.addEventListener("click", () => {
     if (rows().length >= MAX_RECIPIENTS) return;
+    const totalBefore = currentTotalAtomic();
+    const shouldAutoSplit = !hasManualRecipientAmounts();
     const first = list.querySelector(".send-recipient-row");
     if (!first) return;
     const clone = first.cloneNode(true);
     const inp = clone.querySelector(".send-recipient-input");
     if (inp) inp.value = "";
-    const amt = clone.querySelector(".send-recipient-amount");
-    if (amt) amt.value = "";
+    const amt = recipientAmountInput(clone);
+    setRowAmountValue(amt, "", false);
     list.appendChild(clone);
-    syncRemoveButtons();
     bindRemoveRow(clone);
     bindAmountRow(clone);
-    autoSplitFromTopAmount();
+    if (selectedToken) {
+      setTopAmountValue(totalBefore > 0n ? formatAtomicAmount(totalBefore) : "");
+    }
+    if (shouldAutoSplit) {
+      autoSplitFromTopAmount();
+    } else {
+      syncTopAmountFromRows();
+    }
     syncRemoveButtons();
   });
 
@@ -1688,14 +1673,15 @@ function initRecipients() {
       syncRemoveButtons();
       return;
     }
-    rows().forEach((row) => {
-      const amt = row.querySelector(".send-recipient-amount");
-      if (!amt) return;
-      amt.dataset.manual = "0";
-    });
+    if (rows().length <= 1) {
+      syncSingleRowFromTopAmount();
+      syncRemoveButtons();
+      return;
+    }
     autoSplitFromTopAmount();
     syncRemoveButtons();
   });
+  syncSingleRowFromTopAmount();
   autoSplitFromTopAmount();
   syncRemoveButtons();
 }
@@ -1722,39 +1708,12 @@ function resolveRecipientAmounts(recipientRows, defaultUiStr, decimals) {
     };
   }
 
-  const filled = perRow.filter(Boolean).length;
-  if (filled === 0) {
-    const totalAtomic = parseUiAmountToAtomic(defaultUiStr, decimals);
-    if (!totalAtomic) {
-      throw new Error("Enter a total amount to split across recipients");
-    }
-    const count = BigInt(recipientRows.length);
-    const base = totalAtomic / count;
-    const rem = totalAtomic % count;
-    if (base <= 0n) {
-      throw new Error("Amount is too small to split across recipients");
-    }
-    const amountsAtomic = recipientRows.map((_, idx) =>
-      base + (idx === 0 ? rem : 0n)
-    );
-    const amountsUi = amountsAtomic.map((amount) =>
-      formatAmountForInput(atomicToUiNumber(amount, decimals), decimals)
-    );
-    return { amountsAtomic, amountsUi };
-  }
-
-  if (filled !== recipientRows.length) {
-    throw new Error(
-      "For multiple recipients, either use the total amount only or fill every split amount"
-    );
-  }
-
   const amountsAtomic = [];
   const amountsUi = [];
   for (const ui of perRow) {
     const atomic = parseUiAmountToAtomic(ui, decimals);
     if (!atomic) {
-      throw new Error("Set a valid amount for each recipient");
+      throw new Error("Set a valid amount for each active recipient");
     }
     amountsAtomic.push(atomic);
     amountsUi.push(ui);
@@ -1769,21 +1728,34 @@ async function executeStandardSend() {
 
   const submit = document.getElementById("send-submit");
 
-  const inputs = [...document.querySelectorAll(".send-recipient-input")];
+  const rowEls = [...document.querySelectorAll(".send-recipient-row")];
   const recipients = [];
   const seen = new Set();
   const defaultUiStr = (document.getElementById("send-amount")?.value || "").trim();
   const recipientRows = [];
-  for (const inp of inputs) {
-    const raw = (inp.value || "").trim();
-    if (!raw) {
-      showToast(
-        inputs.length > 1
-          ? "Enter every recipient address"
-          : "Enter recipient address",
-        "error"
-      );
-      return;
+  const isMultiRow = rowEls.length > 1;
+  for (const row of rowEls) {
+    const inp = row.querySelector(".send-recipient-input");
+    const amountInput = row.querySelector(".send-recipient-amount");
+    const raw = String(inp?.value || "").trim();
+    const amountUi = String(amountInput?.value || "").trim();
+    const amountAtomic =
+      amountUi && selectedToken
+        ? parseUiAmountToAtomic(amountUi, selectedToken.decimals)
+        : 0n;
+    const hasAmount = Boolean(amountAtomic && amountAtomic > 0n);
+    if (!isMultiRow) {
+      if (!raw) {
+        showToast("Enter recipient address", "error");
+        return;
+      }
+    } else {
+      if (!raw && !amountUi) continue;
+      if (!raw && amountUi) {
+        showToast("Enter a recipient address for each amount", "error");
+        return;
+      }
+      if (raw && !hasAmount) continue;
     }
     let dest;
     try {
@@ -1799,7 +1771,17 @@ async function executeStandardSend() {
     }
     seen.add(s);
     recipients.push(dest);
-    recipientRows.push(inp.closest(".send-recipient-row"));
+    recipientRows.push(row);
+  }
+
+  if (!recipientRows.length) {
+    showToast(
+      isMultiRow
+        ? "Add at least one recipient with an amount"
+        : "Enter recipient address",
+      "error"
+    );
+    return;
   }
 
   let amountsAtomic;
@@ -1934,7 +1916,9 @@ async function executeStandardSend() {
     const rowAmounts = document.querySelectorAll(".send-recipient-amount");
     rowAmounts.forEach((el) => {
       el.value = "";
+      el.dataset.manual = "0";
     });
+    amountEl?.dispatchEvent(new Event("input", { bubbles: true }));
     invalidateWalletBalSnapshot();
     void refreshWalletHoldings();
     void refreshSendAvailable();

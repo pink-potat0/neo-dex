@@ -276,7 +276,6 @@ function initChainModal() {
     openPopup(modal, { panel, backdrop });
     search.value = "";
     refresh();
-    requestAnimationFrame(() => search.focus());
   }
 
   document.getElementById("bridge-destination-chain-btn")?.addEventListener(

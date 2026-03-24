@@ -652,21 +652,28 @@ export async function disconnectWallet(onChange) {
   onChange?.();
 }
 
-/** Short address and menu hint when connected (matches wireWalletConnectButton). */
+/** Show the live connected address only; disconnected state stays explicit. */
 export function walletConnectButtonLabel() {
-  return publicKey ? fmtShortPk(publicKey) + " v" : "Connect";
+  return publicKey ? fmtShortPk(publicKey) : "Connect wallet";
 }
 
 export function refreshWalletConnectButtonLabel(btn) {
-  if (btn) {
-    const live = walletConnectButtonLabel();
-    if (live !== "Connect") {
-      btn.textContent = live;
-      return;
-    }
-    const cached = fmtShortPkString(readCachedWalletPk());
-    btn.textContent = cached ? cached + " v" : live;
+  if (!btn) return;
+  const live = walletConnectButtonLabel();
+  const connected = Boolean(publicKey);
+  btn.textContent = live;
+  btn.dataset.walletConnected = connected ? "1" : "0";
+  if (connected) {
+    const full = publicKey.toBase58();
+    btn.title = "Connected wallet " + full + ". Tap for wallet options.";
+    btn.setAttribute(
+      "aria-label",
+      "Connected wallet " + full + ". Open wallet options."
+    );
+    return;
   }
+  btn.removeAttribute("title");
+  btn.setAttribute("aria-label", "Connect wallet");
 }
 
 function ensureWalletMenuShell(btn) {
@@ -729,6 +736,21 @@ export function openWalletPicker(onPicked) {
   const list = root.querySelector("#neo-wallet-picker-list");
   list.innerHTML = "";
 
+  const setPickerError = (message = "") => {
+    let err = root.querySelector("[data-neo-wallet-error]");
+    if (!message) {
+      err?.remove();
+      return;
+    }
+    if (!err) {
+      err = document.createElement("p");
+      err.dataset.neoWalletError = "1";
+      err.className = "mt-2 text-[10px] font-bold uppercase text-error";
+      list.insertAdjacentElement("afterend", err);
+    }
+    err.textContent = message;
+  };
+
   const close = () => {
     closeWalletPicker();
   };
@@ -763,15 +785,18 @@ export function openWalletPicker(onPicked) {
       btn.appendChild(label);
       btn.appendChild(detected);
       btn.addEventListener("click", async function () {
+        setPickerError("");
+        btn.disabled = true;
+        btn.classList.add("cursor-wait", "opacity-60");
         try {
           localStorage.setItem(LS_WALLET, id);
           await connectInteractive(adapter, onPicked, id);
           closeWalletPicker();
         } catch (e) {
-          const err = document.createElement("p");
-          err.className = "mt-2 text-[10px] font-bold uppercase text-error";
-          err.textContent = (e && e.message) || "Connection failed";
-          list.appendChild(err);
+          setPickerError((e && e.message) || "Connection failed");
+        } finally {
+          btn.disabled = false;
+          btn.classList.remove("cursor-wait", "opacity-60");
         }
       });
       list.appendChild(btn);

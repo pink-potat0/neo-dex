@@ -1522,7 +1522,6 @@ function initModal() {
     if (search) search.value = "";
     /** Single gen bump lives in `updateModalTokenDisplay` so we don’t invalidate that run immediately. */
     void updateModalTokenDisplay("", modal, close);
-    if (search) requestAnimationFrame(() => search.focus());
   }
 
   openers.forEach(function (el) {

@@ -1,6 +1,38 @@
 (function () {
   var STORAGE_KEY = "neo-dex-theme";
   var root = document.documentElement;
+  var CLEAN_ROUTE_MAP = {
+    "/portfolio": "/pages/portfolio.html",
+    "/swap": "/pages/swap.html",
+    "/send": "/pages/send.html",
+    "/bridge": "/pages/bridge.html"
+  };
+
+  function isLocalHost() {
+    var host = String(window.location.hostname || "").toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host === "0.0.0.0";
+  }
+
+  function rewriteLocalLinks() {
+    if (!isLocalHost()) return;
+    document.querySelectorAll("a[href]").forEach(function (link) {
+      var href = link.getAttribute("href");
+      if (!href || !CLEAN_ROUTE_MAP[href]) return;
+      link.setAttribute("href", CLEAN_ROUTE_MAP[href]);
+    });
+  }
+
+  function redirectLocalCleanRoute() {
+    if (!isLocalHost()) return;
+    var pathname = String(window.location.pathname || "");
+    var normalized = pathname.length > 1 && pathname.endsWith("/")
+      ? pathname.slice(0, -1)
+      : pathname;
+    var mapped = CLEAN_ROUTE_MAP[normalized];
+    if (!mapped) return;
+    var nextUrl = mapped + window.location.search + window.location.hash;
+    window.location.replace(nextUrl);
+  }
 
   function getPreferredTheme() {
     var saved = "";
@@ -35,6 +67,7 @@
   applyTheme(getPreferredTheme());
 
   document.addEventListener("DOMContentLoaded", function () {
+    rewriteLocalLinks();
     var toggles = document.querySelectorAll("#theme-toggle");
     toggles.forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -43,4 +76,6 @@
       });
     });
   });
+
+  redirectLocalCleanRoute();
 })();
