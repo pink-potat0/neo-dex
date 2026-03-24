@@ -93,6 +93,8 @@ const SEND_HOLDINGS_SNAPSHOT_PREFIX = "neo-dex-send-holdings-v1:";
 let privacySdkPromise = null;
 let privacyWarmupPromise = null;
 let privacyCircuitPreloadPromise = null;
+let privacyContextPromise = null;
+let privacyContextWallet = "";
 let privacyLastKnownLamports = null;
 let privacyAutoSignAttempted = false;
 let privacyAutoSignWallet = "";
@@ -397,6 +399,7 @@ async function ensurePrivacySessionSignature({
     });
   }
   await getPrivacySignedSignature(owner, provider);
+  invalidatePrivacyContextCache();
   syncPrivacySessionUi();
   if (successToast) {
     showToast(successToast, "success", { durationMs: 3000 });
@@ -445,6 +448,34 @@ function warmPrivacyRuntime() {
     ]).then(() => undefined);
   }
   return privacyWarmupPromise;
+}
+
+function invalidatePrivacyContextCache() {
+  privacyContextPromise = null;
+  privacyContextWallet = "";
+}
+
+async function getPreparedPrivacyContext({
+  allowPromptSignature = false,
+  forceRebuild = false,
+} = {}) {
+  const owner = getPublicKey();
+  if (!owner) throw new Error("Connect wallet first");
+  const owner58 = owner.toBase58();
+  const walletChanged = privacyContextWallet && privacyContextWallet !== owner58;
+  if (walletChanged) {
+    invalidatePrivacyContextCache();
+  }
+  if (!privacyContextPromise || forceRebuild) {
+    privacyContextWallet = owner58;
+    privacyContextPromise = buildPrivacyContextWithOptions({
+      allowPromptSignature,
+    }).catch((err) => {
+      invalidatePrivacyContextCache();
+      throw err;
+    });
+  }
+  return privacyContextPromise;
 }
 
 function getPrivacyStorage() {
@@ -555,20 +586,24 @@ async function refreshPrivacyPoolBalance({
   }
   try {
     const isInitialFullScan = privacyLastKnownLamports == null;
-    const ctx = await buildPrivacyContextWithOptions({
+    const ctx = await getPreparedPrivacyContext({
       allowPromptSignature,
     });
     const abort = new AbortController();
     const effectiveTimeoutMs = isInitialFullScan ? Math.max(timeoutMs, 45000) : timeoutMs;
     const cancel = setTimeout(() => abort.abort(), effectiveTimeoutMs);
-    const utxos = await ctx.sdk.getUtxos({
-      publicKey: ctx.owner,
-      connection: ctx.connection,
-      encryptionService: ctx.encryptionService,
-      storage: ctx.storage,
-      abortSignal: abort.signal,
-      offset: isInitialFullScan ? 0 : undefined,
-    });
+    const utxos = await withTimeout(
+      ctx.sdk.getUtxos({
+        publicKey: ctx.owner,
+        connection: ctx.connection,
+        encryptionService: ctx.encryptionService,
+        storage: ctx.storage,
+        abortSignal: abort.signal,
+        offset: isInitialFullScan ? 0 : undefined,
+      }),
+      effectiveTimeoutMs,
+      "Privacy balance"
+    );
     clearTimeout(cancel);
     const bal = ctx.sdk.getBalanceFromUtxos(utxos);
     const lamports = Number(bal?.lamports || 0);
@@ -930,6 +965,7 @@ function syncSendPageUi() {
   const pk = getPublicKey();
   if (!pk) {
     invalidateWalletBalSnapshot();
+    invalidatePrivacyContextCache();
     privacyAutoSignAttempted = false;
     privacyAutoSignWallet = "";
     privacySessionPromptShownForWallet = "";
@@ -1197,7 +1233,7 @@ function initPrivacyUi() {
       { noAutoDismiss: true }
     );
     await warmPrivacyRuntime();
-    const ctx = await buildPrivacyContextWithOptions({
+    const ctx = await getPreparedPrivacyContext({
       allowPromptSignature: true,
     });
     const baseTransactionSigner = ctx.transactionSigner;
@@ -1231,6 +1267,10 @@ function initPrivacyUi() {
       const ok = await ensureWalletForAction();
       if (!ok || !modal) return;
       void warmPrivacyRuntime().catch(() => {});
+      void getPreparedPrivacyContext({
+        allowPromptSignature: false,
+        forceRebuild: true,
+      }).catch(() => {});
       if (modalAmount) modalAmount.value = (input?.value || "").trim();
       if (modalWalletBal) {
         modalWalletBal.textContent = "Loading...";
@@ -1280,12 +1320,18 @@ function initPrivacyUi() {
     if (lamports > BigInt(Number.MAX_SAFE_INTEGER)) {
       return showToast("Amount is too large", "error");
     }
+    let walletHintTimer = null;
     try {
       const ctx = await buildPrivacyActionContext("top up");
       closeTopupModal();
       showToast("Submitting deposit to Privacy Cash...", "info", {
         noAutoDismiss: true,
       });
+      walletHintTimer = setTimeout(() => {
+        showToast("Open your wallet and confirm the top-up transaction", "info", {
+          durationMs: 7000,
+        });
+      }, 7000);
       const out = await withTimeout(
         ctx.sdk.deposit({
           lightWasm: ctx.lightWasm,
@@ -1330,9 +1376,12 @@ function initPrivacyUi() {
       void pollPrivacyBalanceAfterDeposit(Number(lamports));
     } catch (err) {
       hideToast();
+      invalidatePrivacyContextCache();
       showToast(normalizePrivacyError(err, "Privacy deposit"), "error", {
         durationMs: 7000,
       });
+    } finally {
+      if (walletHintTimer) clearTimeout(walletHintTimer);
     }
   });
 
