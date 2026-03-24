@@ -114,9 +114,9 @@ export function recordSiteBridge(entry) {
 }
 
 export function recordSiteBurn(entry) {
-  const { wallet, signature, mint, symbol, amountHuman } = entry;
+  const { wallet, signature, mint, symbol, amountHuman, tokenCount } = entry;
   if (!wallet || !signature) return;
-  upsertRow({
+  const row = {
     type: "burn",
     wallet,
     signature,
@@ -124,7 +124,11 @@ export function recordSiteBurn(entry) {
     symbol: symbol || "TOKEN",
     amountHuman,
     ts: Date.now(),
-  });
+  };
+  if (Number.isFinite(tokenCount) && tokenCount > 0) {
+    row.tokenCount = tokenCount;
+  }
+  upsertRow(row);
 }
 
 export function recordSiteClaim(entry) {

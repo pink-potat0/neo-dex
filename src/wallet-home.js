@@ -563,8 +563,14 @@ function renderActivity(walletPk) {
     } else if (e.type === "burn") {
       sym.textContent = "local_fire_department";
       const amount = fmtActivityAmt(parseActivityAmountHuman(e.amountHuman));
-      line.textContent =
-        "Burned " + amount + " " + (e.symbol || "TOKEN") + " (" + shortAddr(e.mint) + ")";
+      const tokenCount =
+        Number.isFinite(e.tokenCount) && e.tokenCount > 0 ? e.tokenCount : 0;
+      if (tokenCount > 1) {
+        line.textContent = "Burned " + tokenCount + " token balances";
+      } else {
+        line.textContent =
+          "Burned " + amount + " " + (e.symbol || "TOKEN") + " (" + shortAddr(e.mint) + ")";
+      }
     } else if (e.type === "claim") {
       sym.textContent = "savings";
       const cnt = Number.isFinite(e.closedCount) ? e.closedCount : 0;

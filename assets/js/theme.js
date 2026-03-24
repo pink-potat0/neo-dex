@@ -5,7 +5,8 @@
     "/portfolio": "/pages/portfolio.html",
     "/swap": "/pages/swap.html",
     "/send": "/pages/send.html",
-    "/bridge": "/pages/bridge.html"
+    "/bridge": "/pages/bridge.html",
+    "/reclaim": "/pages/reclaim.html"
   };
 
   function isLocalHost() {

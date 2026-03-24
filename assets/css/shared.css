@@ -594,6 +594,7 @@ nav.fixed.bottom-0 > a:nth-child(1) { --neo-nav-chip-bg: #ffd34f; }
 nav.fixed.bottom-0 > a:nth-child(2) { --neo-nav-chip-bg: #c98bff; }
 nav.fixed.bottom-0 > a:nth-child(3) { --neo-nav-chip-bg: #3de7d1; }
 nav.fixed.bottom-0 > a:nth-child(4) { --neo-nav-chip-bg: #ff7f8a; }
+nav.fixed.bottom-0 > a:nth-child(5) { --neo-nav-chip-bg: #86f0f0; }
 
 html.dark nav.fixed.bottom-0 a .material-symbols-outlined {
   border-color: #1a1a1a;
@@ -630,5 +631,85 @@ textarea {
   #bridge-toast-host > *,
   .loading-pulse {
     animation: none !important;
+  }
+}
+
+.neo-cleanup-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #3df5c4 #1d2233;
+}
+
+.neo-cleanup-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.neo-cleanup-scroll::-webkit-scrollbar-track {
+  background: #1d2233;
+  border: 2px solid #000;
+}
+
+.neo-cleanup-scroll::-webkit-scrollbar-thumb {
+  background: #3df5c4;
+  border: 2px solid #000;
+}
+
+html.dark .page-reclaim section,
+html.dark .page-reclaim #burn-confirm-modal > div > div {
+  background-color: #1b2233 !important;
+  color: #f3f6ff !important;
+}
+
+html.dark .page-reclaim .bg-white {
+  background-color: #111827 !important;
+  color: #f3f6ff !important;
+}
+
+html.dark .page-reclaim .text-black,
+html.dark .page-reclaim .text-on-surface,
+html.dark .page-reclaim .text-on-primary-container {
+  color: #f3f6ff !important;
+}
+
+html.dark .page-reclaim .text-outline,
+html.dark .page-reclaim .text-on-surface-variant {
+  color: #aeb8d8 !important;
+}
+
+html.dark .page-reclaim #reclaim-submit {
+  color: #071a1f !important;
+}
+
+html.dark .page-reclaim #burn-submit,
+html.dark .page-reclaim #burn-confirm-submit {
+  background-color: #ff5b6e !important;
+  color: #23030a !important;
+}
+
+html.dark .page-reclaim #reclaim-list > div,
+html.dark .page-reclaim #burn-list > label,
+html.dark .page-reclaim #reclaim-empty,
+html.dark .page-reclaim #burn-empty {
+  background-color: #242d43 !important;
+  color: #f3f6ff !important;
+}
+
+@media (max-width: 767px) {
+  .page-reclaim .neo-page-main {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+  }
+
+  .page-reclaim #reclaim-list > div,
+  .page-reclaim #burn-list > label {
+    gap: 0.75rem !important;
+    padding: 0.75rem !important;
+  }
+
+  .page-reclaim #reclaim-list > div button,
+  .page-reclaim #burn-submit,
+  .page-reclaim #reclaim-submit,
+  .page-reclaim #reclaim-scan,
+  .page-reclaim #burn-scan {
+    min-height: 2.75rem;
   }
 }

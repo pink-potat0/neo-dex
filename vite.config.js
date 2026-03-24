@@ -8,6 +8,7 @@ const cleanRouteMap = new Map([
   ["/swap", "/pages/swap.html"],
   ["/send", "/pages/send.html"],
   ["/bridge", "/pages/bridge.html"],
+  ["/reclaim", "/pages/reclaim.html"],
 ]);
 
 function rewriteCleanPageRequest(req) {
@@ -136,6 +137,7 @@ export default defineConfig(({ mode }) => {
           swap: resolve(__dirname, "pages/swap.html"),
           bridge: resolve(__dirname, "pages/bridge.html"),
           send: resolve(__dirname, "pages/send.html"),
+          reclaim: resolve(__dirname, "pages/reclaim.html"),
         },
       },
     },

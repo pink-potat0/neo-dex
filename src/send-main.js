@@ -1060,28 +1060,15 @@ function syncSendPageUi() {
   const pk = getPublicKey();
   if (!pk) {
     invalidateWalletBalSnapshot();
-    invalidatePrivacyContextCache();
-    privacyAutoSignAttempted = false;
-    privacyAutoSignWallet = "";
-    privacySessionPromptShownForWallet = "";
   }
   else {
-    if (privacyAutoSignWallet !== pk.toBase58()) {
-      privacyAutoSignWallet = pk.toBase58();
-      privacyAutoSignAttempted = false;
-    }
     void withRpcRetry(async (conn) => {
       await getWalletUiBalanceMap(conn, pk);
     }).catch(() => {});
   }
   updateSendSubmitState();
-  syncPrivacySessionUi();
   void refreshWalletHoldings();
   void refreshSendAvailable();
-  void refreshPrivacyPoolBalance();
-  if (pk) {
-    void autoSignPrivacyOnLoad();
-  }
 }
 
 function updateSendSubmitState() {
@@ -2167,7 +2154,6 @@ async function executeStandardSend() {
 async function init() {
   installPrivacyRelayerFetchProxy();
   initTabs();
-  initPrivacyUi();
 
   const wirePromise = wireWalletConnectButton(syncSendPageUi);
 
@@ -2226,7 +2212,6 @@ async function init() {
   });
 
   syncSendPageUi();
-  void autoSignPrivacyOnLoad();
 }
 
 init().catch((err) => {
