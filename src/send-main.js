@@ -587,28 +587,50 @@ async function signPrivacyTransactionWithFallback(provider, tx) {
     throw new Error("Connected wallet cannot sign transactions");
   }
 
-  const SIGN_TIMEOUT_MS = 25000;
+  const SIGN_TIMEOUT_MS = 45000;
+  const providerId = String(
+    provider?.__neoDexAdapterId ||
+      provider?.name ||
+      provider?.__neoDexStandardWallet?.name ||
+      ""
+  ).toLowerCase();
+  const preferSignAllFirst =
+    providerId.includes("jupiter") || providerId.includes("solflare");
 
   const withSignTimeout = async (promise) =>
     withTimeout(promise, SIGN_TIMEOUT_MS, "Wallet signature");
 
-  if (typeof signTx === "function") {
+  const attemptSignTx = async () => {
+    if (typeof signTx !== "function") return null;
     try {
       const signed = await withSignTimeout(signTx(tx));
-      if (signed) return signed;
+      return signed || null;
     } catch (err) {
       const message = String(err?.message || err || "");
       const isUserRejected =
         /reject|denied|cancel|decline|user rejected/i.test(message);
       if (isUserRejected) throw err;
-      // Fall through to signAllTransactions if available.
+      return null;
     }
-  }
+  };
 
-  if (typeof signAll === "function") {
+  const attemptSignAll = async () => {
+    if (typeof signAll !== "function") return null;
     const signedList = await withSignTimeout(signAll([tx]));
     const first = Array.isArray(signedList) ? signedList[0] : null;
-    if (first) return first;
+    return first || null;
+  };
+
+  if (preferSignAllFirst) {
+    const signedViaAll = await attemptSignAll();
+    if (signedViaAll) return signedViaAll;
+    const signedViaSingle = await attemptSignTx();
+    if (signedViaSingle) return signedViaSingle;
+  } else {
+    const signedViaSingle = await attemptSignTx();
+    if (signedViaSingle) return signedViaSingle;
+    const signedViaAll = await attemptSignAll();
+    if (signedViaAll) return signedViaAll;
   }
 
   throw new Error("Wallet did not return a signed transaction");

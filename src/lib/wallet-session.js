@@ -210,6 +210,20 @@ function extractSignedTransaction(output) {
   );
 }
 
+function extractSignedTransactions(output) {
+  if (!output) return [];
+  const arr = Array.isArray(output) ? output : [output];
+  const out = [];
+  for (const item of arr) {
+    const bytes =
+      toUint8Array(item?.signedTransaction) ||
+      toUint8Array(item?.transaction) ||
+      toUint8Array(item);
+    if (bytes) out.push(bytes);
+  }
+  return out;
+}
+
 function extractMessageSignature(output) {
   if (!output) return null;
   const first = Array.isArray(output) ? output[0] : output;
@@ -364,6 +378,38 @@ function createWalletStandardAdapter(wallet) {
         throw new Error("Wallet did not return a signed transaction");
       }
       return deserializeSignedTransaction(signedBytes, transaction);
+    },
+    async signAllTransactions(transactions) {
+      const list = Array.isArray(transactions) ? transactions : [];
+      if (!list.length) return [];
+      const activeAccount = account || pickStandardAccount(wallet);
+      if (!activeAccount) throw new Error("Wallet not connected");
+      const chain = pickSolanaChain(activeAccount, wallet);
+      const signAllFeature =
+        wallet.features?.["solana:signAllTransactions"]?.signAllTransactions;
+
+      if (signAllFeature) {
+        const payload = list.map((transaction) => ({
+          account: activeAccount,
+          chain,
+          transaction: serializeTransactionForWallet(transaction),
+        }));
+        const signed = await signAllFeature.signAllTransactions(payload);
+        const signedBytesList = extractSignedTransactions(signed);
+        if (signedBytesList.length !== list.length) {
+          throw new Error("Wallet did not return all signed transactions");
+        }
+        return signedBytesList.map((bytes, idx) =>
+          deserializeSignedTransaction(bytes, list[idx])
+        );
+      }
+
+      // Fallback for wallets that expose only single-tx signing.
+      const signedList = [];
+      for (const tx of list) {
+        signedList.push(await adapter.signTransaction(tx));
+      }
+      return signedList;
     },
     async signMessage(message) {
       const signFeature = wallet.features?.["solana:signMessage"];
