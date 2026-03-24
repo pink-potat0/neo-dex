@@ -53,6 +53,12 @@ const devProxy = {
     secure: true,
     rewrite: (p) => p.replace(/^\/__jupiter_api/, ""),
   },
+  "/__privacycash_api": {
+    target: "https://api3.privacycash.org",
+    changeOrigin: true,
+    secure: true,
+    rewrite: (p) => p.replace(/^\/__privacycash_api/, ""),
+  },
 };
 
 function privacyEnvDefines(env) {

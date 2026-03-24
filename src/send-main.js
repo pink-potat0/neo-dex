@@ -70,6 +70,12 @@ const PRIVACY_CIRCUIT_BASE = (() => {
 })();
 const PRIVACY_ACTION_TIMEOUT_MS = 120000;
 const PRIVACY_BALANCE_TIMEOUT_MS = 12000;
+const PRIVACY_RELAYER_API_ORIGIN = String(
+  import.meta.env.VITE_PRIVACY_RELAYER_API_ORIGIN || "https://api3.privacycash.org"
+)
+  .trim()
+  .replace(/\/+$/, "");
+const PRIVACY_RELAYER_PROXY_PREFIX = "/__privacycash_api";
 
 const TRUSTED_LOGO_BY_MINT = {
   [SOL_MINT]:
@@ -99,6 +105,36 @@ let privacyLastKnownLamports = null;
 let privacyAutoSignAttempted = false;
 let privacyAutoSignWallet = "";
 let privacySessionPromptShownForWallet = "";
+let privacyRelayerProxyInstalled = false;
+
+function installPrivacyRelayerFetchProxy() {
+  if (privacyRelayerProxyInstalled || typeof window === "undefined") return;
+  const nativeFetch = window.fetch?.bind(window);
+  if (typeof nativeFetch !== "function") return;
+
+  window.fetch = (input, init) => {
+    let rawUrl = "";
+    try {
+      if (typeof input === "string") rawUrl = input;
+      else if (input instanceof URL) rawUrl = input.toString();
+      else if (input?.url) rawUrl = String(input.url);
+
+      if (rawUrl.startsWith(PRIVACY_RELAYER_API_ORIGIN)) {
+        const proxiedUrl =
+          PRIVACY_RELAYER_PROXY_PREFIX +
+          rawUrl.slice(PRIVACY_RELAYER_API_ORIGIN.length);
+        if (input instanceof Request) {
+          return nativeFetch(new Request(proxiedUrl, input), init);
+        }
+        return nativeFetch(proxiedUrl, init);
+      }
+    } catch {
+      // Fall through to native fetch for any unexpected shape.
+    }
+    return nativeFetch(input, init);
+  };
+  privacyRelayerProxyInstalled = true;
+}
 
 function sendSnapshotKey(walletBase58) {
   return SEND_HOLDINGS_SNAPSHOT_PREFIX + walletBase58;
@@ -2107,6 +2143,7 @@ async function executeStandardSend() {
 }
 
 async function init() {
+  installPrivacyRelayerFetchProxy();
   initTabs();
   initPrivacyUi();
 
