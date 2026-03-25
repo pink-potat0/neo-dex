@@ -287,7 +287,35 @@ function normalizePrivacyError(err, actionLabel) {
       " timed out. Privacy relayer may be slow right now; retry in a moment."
     );
   }
+  if (/ASSERT FAILED|ERROR IN TEMPLATE|TRANSACTION_\d+/i.test(raw)) {
+    return (
+      "Privacy proof failed (Circom). This usually means the amount is too small after relayer fees, " +
+      "or the private balance cannot cover the send. Try a larger amount, top up the pool, or use Standard send."
+    );
+  }
   return raw || actionLabel + " failed";
+}
+
+/** Same-origin proxy in dev / Vercel — see vite.config.js and vercel.json */
+async function fetchPrivacyRelayerConfig() {
+  const res = await fetch(`${PRIVACY_RELAYER_PROXY_PREFIX}/config`);
+  if (!res.ok) {
+    throw new Error("Privacy relayer config unavailable (" + res.status + ")");
+  }
+  return res.json();
+}
+
+/**
+ * Mirrors privacycash withdraw fee math so we do not run prove() with amounts that go to 0 after fees.
+ */
+function privacyWithdrawNetLamports(amountLamports, cfg) {
+  const rate = Number(cfg?.withdraw_fee_rate ?? 0);
+  const rent = Number(cfg?.withdraw_rent_fee ?? 0);
+  const fee = Math.floor(
+    amountLamports * rate + LAMPORTS_PER_SOL * rent
+  );
+  const net = Math.floor(amountLamports - fee);
+  return { fee, net };
 }
 
 async function withTimeout(promise, timeoutMs, label) {
@@ -758,7 +786,7 @@ async function autoSignPrivacyOnLoad() {
  * Run when the user opens the Privacy pool tab (trusted click). Many wallets only show
  * signMessage when triggered from a user gesture, so this must not rely on page-load auto-sign alone.
  */
-  function requestPrivacySessionOnUserGesture() {
+function requestPrivacySessionOnUserGesture() {
   void warmPrivacyRuntime();
 }
 
@@ -1065,6 +1093,11 @@ function syncSendPageUi() {
     void withRpcRetry(async (conn) => {
       await getWalletUiBalanceMap(conn, pk);
     }).catch(() => {});
+    if (document.querySelector('[data-send-panel="privacy"]')) {
+      void refreshPrivacyPoolBalance({ timeoutMs: PRIVACY_BALANCE_TIMEOUT_MS }).catch(
+        () => {}
+      );
+    }
   }
   updateSendSubmitState();
   void refreshWalletHoldings();
@@ -1235,7 +1268,11 @@ function initTabs() {
   }
   tabs.forEach((t) => {
     t.addEventListener("click", () => {
-      activate(t.getAttribute("data-send-tab"));
+      const mode = t.getAttribute("data-send-tab");
+      activate(mode);
+      if (mode === "privacy") {
+        requestPrivacySessionOnUserGesture();
+      }
     });
   });
   activate("standard");
@@ -1484,6 +1521,27 @@ function initPrivacyUi() {
     if (amountAtomic > BigInt(Number.MAX_SAFE_INTEGER)) {
       return showToast("Amount is too large", "error");
     }
+    const lamportsNum = Number(amountAtomic);
+    try {
+      const relayerCfg = await fetchPrivacyRelayerConfig();
+      const { fee, net } = privacyWithdrawNetLamports(lamportsNum, relayerCfg);
+      if (net <= 0) {
+        return showToast(
+          "After Privacy Cash fees (~" +
+            fee.toLocaleString() +
+            " lamports) this amount is too small to withdraw. Increase the amount or use Standard send.",
+          "error",
+          { durationMs: 9000 }
+        );
+      }
+    } catch (e) {
+      return showToast(
+        String(e?.message || e) ||
+          "Could not read Privacy relayer fees. Check dev proxy / network.",
+        "error",
+        { durationMs: 7000 }
+      );
+    }
     try {
       const ctx = await buildPrivacyActionContext("private send");
       showToast("Submitting Privacy Cash withdrawal...", "info", {
@@ -1496,7 +1554,7 @@ function initPrivacyUi() {
           storage: ctx.storage,
           publicKey: ctx.owner,
           connection: ctx.connection,
-          amount_in_lamports: Number(amountAtomic),
+          amount_in_lamports: lamportsNum,
           encryptionService: ctx.encryptionService,
           keyBasePath: ctx.keyBasePath,
         }),
@@ -2154,6 +2212,7 @@ async function executeStandardSend() {
 async function init() {
   installPrivacyRelayerFetchProxy();
   initTabs();
+  initPrivacyUi();
 
   const wirePromise = wireWalletConnectButton(syncSendPageUi);
 

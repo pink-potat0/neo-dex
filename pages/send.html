@@ -32,8 +32,9 @@
 </header>
 <main id="send-page" class="neo-page-main mx-auto flex min-h-screen w-full max-w-7xl flex-col items-center px-4 pt-[calc(8rem+env(safe-area-inset-top,0px))] pb-[calc(6rem+env(safe-area-inset-bottom,0px))] sm:pb-24 md:px-8 md:pt-[calc(9rem+env(safe-area-inset-top,0px))]">
 <div class="mx-auto w-full min-w-0 max-w-[480px] space-y-4 sm:space-y-6 md:max-w-[680px]">
-<div class="border-4 border-black">
-<button type="button" class="w-full py-3 text-center text-xs font-bold uppercase tracking-tight transition-colors bg-primary-container text-black" data-send-tab="standard" aria-selected="true">Standard</button>
+<div class="grid grid-cols-2 border-4 border-black">
+<button type="button" class="py-3 text-center text-xs font-bold uppercase tracking-tight transition-colors bg-primary-container text-black" data-send-tab="standard" aria-selected="true">Standard</button>
+<button type="button" class="py-3 text-center text-xs font-bold uppercase tracking-tight transition-colors bg-surface-container-low text-on-surface" data-send-tab="privacy" aria-selected="false">Privacy</button>
 </div>
 <div class="border-4 border-black bg-surface-container-lowest p-4 sm:p-6 md:p-8 neo-shadow">
 <div data-send-panel="standard" class="space-y-4">
@@ -91,6 +92,32 @@ Add recipient
 <p id="send-status" class="min-h-[1.25rem] text-center text-[10px] font-bold uppercase text-error"></p>
 <button type="button" id="send-submit" class="mt-2 w-full border-4 border-black bg-primary-container py-4 font-headline text-lg font-extrabold uppercase tracking-widest text-on-primary-container neo-shadow neo-shadow-hover transition-all active:translate-x-[4px] active:translate-y-[4px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 sm:py-5 sm:text-2xl">Connect wallet</button>
 </div>
+<div data-send-panel="privacy" class="hidden space-y-4">
+<p class="text-xs font-bold uppercase tracking-widest text-on-surface-variant">Privacy Cash · shielded SOL</p>
+<div id="privacy-balance-row" class="flex flex-wrap items-center justify-between gap-3 border-2 border-black bg-surface-container-low px-3 py-3">
+<div class="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+<span id="privacy-balance-label" class="text-[10px] font-bold uppercase text-outline">Private balance</span>
+<span id="privacy-token-icon" class="material-symbols-outlined shrink-0 text-lg text-on-surface" aria-hidden="true">toll</span>
+<span id="privacy-token-symbol" class="text-xs font-extrabold uppercase">SOL</span>
+<span id="privacy-balance-display" class="font-mono text-sm font-bold tabular-nums text-on-surface">0.000000000</span>
+<span id="privacy-balance-unit" class="text-[10px] font-bold uppercase text-outline">SOL</span>
+</div>
+<button type="button" data-privacy-topup class="shrink-0 border-2 border-black bg-white px-3 py-2 text-[10px] font-extrabold uppercase tracking-tight shadow-[2px_2px_0_0_#000] hover:translate-x-px hover:translate-y-px hover:shadow-none"><span id="privacy-topup-label">Top up</span></button>
+</div>
+<div class="space-y-2">
+<label for="privacy-amount-input" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Amount</label>
+<div class="flex flex-wrap items-end gap-2">
+<input id="privacy-amount-input" class="min-h-12 min-w-0 flex-1 border-4 border-black bg-white px-3 py-3 text-center text-xl font-bold outline-none focus:border-primary dark:bg-white dark:text-black sm:text-left" placeholder="0.00" type="text" inputmode="decimal" autocomplete="off"/>
+<button type="button" data-privacy-max class="min-h-12 border-2 border-black bg-surface-container-low px-3 py-2 text-[10px] font-extrabold uppercase tracking-tight hover:bg-primary-container">Max</button>
+</div>
+</div>
+<div class="space-y-2">
+<label for="privacy-recipient-input" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Recipient</label>
+<input id="privacy-recipient-input" class="min-h-12 w-full border-4 border-black bg-white px-3 py-3 font-mono text-xs font-bold text-black outline-none focus:border-primary dark:bg-white dark:text-black sm:text-sm" placeholder="Recipient address" type="text" autocomplete="off"/>
+</div>
+<p class="text-[10px] font-bold uppercase leading-relaxed text-outline">Sign the Privacy Cash message when prompted. Relayer requests use same-origin proxy on production.</p>
+<button type="button" id="privacy-pool-submit" class="w-full border-4 border-black bg-secondary py-4 font-headline text-lg font-extrabold uppercase tracking-widest text-on-secondary neo-shadow transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none active:translate-x-[3px] active:translate-y-[3px] active:shadow-none">Private send</button>
+</div>
 </div>
 </div>
 </main>
@@ -117,6 +144,28 @@ Add recipient
 <span class="font-['Space_Grotesk'] text-[8px] font-bold uppercase leading-tight">Clean Up</span>
 </a>
 </nav>
+<div id="privacy-topup-modal" class="fixed inset-0 z-[130] hidden" aria-hidden="true">
+<div class="absolute inset-0 bg-black/60 backdrop-blur-sm" data-popup-backdrop></div>
+<div class="relative flex min-h-full items-center justify-center p-4">
+<div data-popup-panel class="w-full max-w-md border-4 border-black bg-surface-container-lowest neo-shadow">
+<div class="flex items-center justify-between border-b-4 border-black px-4 py-3">
+<h3 class="text-sm font-extrabold uppercase tracking-widest">Top up private balance</h3>
+<button type="button" class="border-2 border-black bg-white px-2 py-1 text-xs font-bold uppercase" data-privacy-topup-close>Close</button>
+</div>
+<div class="space-y-4 p-4">
+<p class="text-[10px] font-bold uppercase text-outline">Wallet (native SOL)</p>
+<p id="privacy-topup-wallet-balance" class="font-mono text-lg font-bold">—</p>
+<div class="flex flex-wrap items-end gap-2">
+<label class="block w-full text-[10px] font-bold uppercase text-on-surface-variant" for="privacy-topup-amount">Amount</label>
+<input id="privacy-topup-amount" class="min-h-12 min-w-0 flex-1 border-4 border-black bg-white px-3 py-3 font-mono text-sm font-bold outline-none focus:border-primary" placeholder="0.00" type="text" inputmode="decimal" autocomplete="off"/>
+<button type="button" id="privacy-topup-max" class="min-h-12 border-2 border-black bg-surface-container-low px-3 py-2 text-[10px] font-extrabold uppercase">Max</button>
+</div>
+<p class="flex items-center gap-1 text-[10px] font-bold uppercase text-on-surface-variant"><span id="privacy-topup-token-icon" class="material-symbols-outlined text-base">toll</span><span id="privacy-topup-token-symbol">SOL</span></p>
+<button type="button" id="privacy-topup-submit" class="w-full border-4 border-black bg-primary-container py-3 font-headline text-sm font-extrabold uppercase tracking-widest text-on-primary-container neo-shadow">Confirm top up</button>
+</div>
+</div>
+</div>
+</div>
 <div id="send-toast-host" class="pointer-events-none fixed bottom-20 right-4 z-[140] flex max-w-[min(94vw,26rem)] flex-col items-end gap-2 md:bottom-8" aria-live="polite"></div>
 <script type="module" src="../src/send-main.js"></script>
 </body>

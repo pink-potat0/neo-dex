@@ -62,24 +62,50 @@ const devProxy = {
   },
 };
 
+/**
+ * Same defaults as privacycash@1.x `dist/utils/constants.js` (mainnet).
+ * Vite must bake non-empty `process.env.NEXT_PUBLIC_*` into the SDK bundle — on some hosts
+ * `process.env` reads are undefined at runtime, which breaks the pool. Override via VITE_PRIVACY_* in Vercel only if Privacy Cash changes chain constants.
+ */
+const PRIVACY_DEFAULTS = {
+  PROGRAM_ID: "9fhQBbumKEFuXtMBDw8AaQyAjCorLGJQiS3skWZdQyQD",
+  ALT_ADDRESS: "HEN49U2ySJ85Vc78qprSW9y6mFDhs1NczRxyppNHjofe",
+  RELAYER_API_URL: "https://api3.privacycash.org",
+  USDC_MINT: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  USDT_MINT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+  ZEC_MINT: "A7bdiYdS5GjqGFtxf17ppRHtDKPkkRqbKtR27dxvQXaS",
+  ORE_MINT: "oreoU2P8bN6jkk3jbaiVxYnG1dCXcYxwhwyK9jSybcp",
+  STORE_MINT: "sTorERYB6xAZ1SSbwpK3zoK2EEwbBrc7TZAzg1uCGiH",
+  JLUSDC_MINT: "9BEcn9aPEmhSPbPQeFGjidRiEKki46fVQDyPpSQXPA2D",
+  JLW_SOL_MINT: "2uQsyo1fXXQkDtcpXnLofWy88PxcvnfH2L8FPSE62FVU",
+};
+
 function privacyEnvDefines(env) {
+  const pick = (k, def) =>
+    String(env[k] ?? def ?? "")
+      .trim()
+      .replace(/\/+$/, "");
   const mappings = {
-    NEXT_PUBLIC_PROGRAM_ID: env.VITE_PRIVACY_PROGRAM_ID || "",
-    NEXT_PUBLIC_ALT_ADDRESS: env.VITE_PRIVACY_ALT_ADDRESS || "",
-    NEXT_PUBLIC_RELAYER_API_URL: env.VITE_PRIVACY_RELAYER_API_URL || "",
-    NEXT_PUBLIC_USDC_MINT: env.VITE_PRIVACY_USDC_MINT || "",
-    NEXT_PUBLIC_USDT_MINT: env.VITE_PRIVACY_USDT_MINT || "",
-    NEXT_PUBLIC_ZEC_MINT: env.VITE_PRIVACY_ZEC_MINT || "",
-    NEXT_PUBLIC_ORE_MINT: env.VITE_PRIVACY_ORE_MINT || "",
-    NEXT_PUBLIC_STORE_MINT: env.VITE_PRIVACY_STORE_MINT || "",
-    NEXT_PUBLIC_JLUSDC_MINT: env.VITE_PRIVACY_JLUSDC_MINT || "",
-    NEXT_PUBLIC_JLW_SOL_MINT: env.VITE_PRIVACY_JLW_SOL_MINT || "",
+    NEXT_PUBLIC_PROGRAM_ID: pick("VITE_PRIVACY_PROGRAM_ID", PRIVACY_DEFAULTS.PROGRAM_ID),
+    NEXT_PUBLIC_ALT_ADDRESS: pick("VITE_PRIVACY_ALT_ADDRESS", PRIVACY_DEFAULTS.ALT_ADDRESS),
+    NEXT_PUBLIC_RELAYER_API_URL: pick(
+      "VITE_PRIVACY_RELAYER_API_URL",
+      PRIVACY_DEFAULTS.RELAYER_API_URL
+    ),
+    NEXT_PUBLIC_USDC_MINT: pick("VITE_PRIVACY_USDC_MINT", PRIVACY_DEFAULTS.USDC_MINT),
+    NEXT_PUBLIC_USDT_MINT: pick("VITE_PRIVACY_USDT_MINT", PRIVACY_DEFAULTS.USDT_MINT),
+    NEXT_PUBLIC_ZEC_MINT: pick("VITE_PRIVACY_ZEC_MINT", PRIVACY_DEFAULTS.ZEC_MINT),
+    NEXT_PUBLIC_ORE_MINT: pick("VITE_PRIVACY_ORE_MINT", PRIVACY_DEFAULTS.ORE_MINT),
+    NEXT_PUBLIC_STORE_MINT: pick("VITE_PRIVACY_STORE_MINT", PRIVACY_DEFAULTS.STORE_MINT),
+    NEXT_PUBLIC_JLUSDC_MINT: pick("VITE_PRIVACY_JLUSDC_MINT", PRIVACY_DEFAULTS.JLUSDC_MINT),
+    NEXT_PUBLIC_JLW_SOL_MINT: pick("VITE_PRIVACY_JLW_SOL_MINT", PRIVACY_DEFAULTS.JLW_SOL_MINT),
   };
 
   return Object.fromEntries(
-    Object.entries(mappings)
-      .filter(([, value]) => String(value).trim())
-      .map(([key, value]) => [`process.env.${key}`, JSON.stringify(value)])
+    Object.entries(mappings).map(([key, value]) => [
+      `process.env.${key}`,
+      JSON.stringify(value),
+    ])
   );
 }
 
