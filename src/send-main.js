@@ -110,39 +110,78 @@ let privacyAutoSignWallet = "";
 let privacySessionPromptShownForWallet = "";
 let privacyRelayerProxyInstalled = false;
 
+/**
+ * Merkle endpoints can 404 briefly while the indexer catches up after a deposit.
+ * Retries transient failures so withdraw/send is more reliable.
+ */
+async function fetchWithMerkleRetry(nativeFetch, input, init) {
+  let urlStr = "";
+  try {
+    if (typeof input === "string") urlStr = input;
+    else if (input instanceof URL) urlStr = input.toString();
+    else if (input?.url) urlStr = String(input.url);
+  } catch {
+    /* ignore */
+  }
+  let abs = urlStr;
+  try {
+    abs = new URL(urlStr, typeof window !== "undefined" ? window.location.href : "http://localhost").href;
+  } catch {
+    /* ignore */
+  }
+  const isMerkle =
+    abs.includes("/merkle/proofv2") || abs.includes("/merkle/root");
+  if (!isMerkle) return nativeFetch(input, init);
+
+  const max = 6;
+  for (let attempt = 0; attempt < max; attempt++) {
+    const res = await nativeFetch(input, init);
+    if (res.ok) return res;
+    const retryable =
+      res.status === 404 ||
+      res.status === 429 ||
+      (res.status >= 500 && res.status <= 599);
+    if (retryable && attempt < max - 1) {
+      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+      continue;
+    }
+    return res;
+  }
+}
+
 function installPrivacyRelayerFetchProxy() {
-  if (privacyRelayerProxyInstalled || typeof window === "undefined") return;
-  const nativeFetch = window.fetch?.bind(window);
+  if (privacyRelayerProxyInstalled || typeof globalThis === "undefined") return;
+  const nativeFetch = globalThis.fetch?.bind(globalThis);
   if (typeof nativeFetch !== "function") return;
 
   const crossOriginRelayer = "https://api3.privacycash.org";
 
-  window.fetch = (input, init) => {
+  globalThis.fetch = (input, init) => {
     let rawUrl = "";
     try {
       if (typeof input === "string") rawUrl = input;
       else if (input instanceof URL) rawUrl = input.toString();
       else if (input?.url) rawUrl = String(input.url);
 
-      const u = new URL(rawUrl, window.location.href);
+      const u = new URL(
+        rawUrl,
+        typeof window !== "undefined" ? window.location.href : "http://localhost"
+      );
       const origin = u.origin;
       const pathAndQuery = u.pathname + u.search + u.hash;
 
-      // Same-origin relayer (optional VITE_PRIVACY_RELAYER_API_URL=https://your.site/__privacycash_api)
       if (origin === window.location.origin && pathAndQuery.startsWith(PRIVACY_RELAYER_PROXY_PREFIX)) {
-        return nativeFetch(input, init);
+        return fetchWithMerkleRetry(nativeFetch, input, init);
       }
 
-      // Browser cannot call api3 directly (CORS) — proxy via vercel.json / Vite dev server.
       if (origin === new URL(crossOriginRelayer).origin) {
         const proxiedUrl = PRIVACY_RELAYER_PROXY_PREFIX + pathAndQuery;
         if (input instanceof Request) {
-          return nativeFetch(new Request(proxiedUrl, input), init);
+          return fetchWithMerkleRetry(nativeFetch, new Request(proxiedUrl, input), init);
         }
-        return nativeFetch(proxiedUrl, init);
+        return fetchWithMerkleRetry(nativeFetch, proxiedUrl, init);
       }
 
-      // Custom relayer URL → same-origin proxy when cross-origin.
       if (
         PRIVACY_RELAYER_API_ORIGIN &&
         PRIVACY_RELAYER_API_ORIGIN !== crossOriginRelayer &&
@@ -151,9 +190,9 @@ function installPrivacyRelayerFetchProxy() {
         const rest = rawUrl.slice(PRIVACY_RELAYER_API_ORIGIN.length);
         const proxiedUrl = PRIVACY_RELAYER_PROXY_PREFIX + (rest.startsWith("/") ? rest : "/" + rest);
         if (input instanceof Request) {
-          return nativeFetch(new Request(proxiedUrl, input), init);
+          return fetchWithMerkleRetry(nativeFetch, new Request(proxiedUrl, input), init);
         }
-        return nativeFetch(proxiedUrl, init);
+        return fetchWithMerkleRetry(nativeFetch, proxiedUrl, init);
       }
     } catch {
       // Fall through to native fetch for any unexpected shape.
@@ -312,6 +351,12 @@ function normalizePrivacyError(err, actionLabel) {
     return (
       actionLabel +
       " timed out. Privacy relayer may be slow right now; retry in a moment."
+    );
+  }
+  if (/merkle proof|merkle\/proofv2|failed to fetch merkle/i.test(raw)) {
+    return (
+      "Indexer has no Merkle proof for your notes yet (common right after a deposit). " +
+      "Wait 1–2 minutes and try again."
     );
   }
   if (/ASSERT FAILED|ERROR IN TEMPLATE|TRANSACTION_\d+/i.test(raw)) {
@@ -1449,15 +1494,23 @@ function initPrivacyUi() {
       return showToast("Amount is too large", "error");
     }
     let walletHintTimer = null;
+    let depositWaitTimer = null;
     try {
       const ctx = await buildPrivacyActionContext("top up");
       closeTopupModal();
       showToast("Processing deposit…", "info", { noAutoDismiss: true });
       walletHintTimer = setTimeout(() => {
         showToast("Check your wallet for a signature request", "info", {
-          durationMs: 7000,
+          durationMs: 8000,
         });
-      }, 7000);
+      }, 4000);
+      depositWaitTimer = setTimeout(() => {
+        showToast(
+          "ZK work can take a few minutes — keep this tab open.",
+          "info",
+          { durationMs: 14000 }
+        );
+      }, 8000);
       const out = await withTimeout(
         ctx.sdk.deposit({
           lightWasm: ctx.lightWasm,
@@ -1505,6 +1558,7 @@ function initPrivacyUi() {
       });
     } finally {
       if (walletHintTimer) clearTimeout(walletHintTimer);
+      if (depositWaitTimer) clearTimeout(depositWaitTimer);
     }
   });
 
@@ -1546,9 +1600,17 @@ function initPrivacyUi() {
         { durationMs: 7000 }
       );
     }
+    let sendWaitTimer = null;
     try {
       const ctx = await buildPrivacyActionContext("private send");
-      showToast("Processing withdrawal…", "info", { noAutoDismiss: true });
+      showToast("Processing send…", "info", { noAutoDismiss: true });
+      sendWaitTimer = setTimeout(() => {
+        showToast(
+          "ZK proof can take a few minutes — stay on this page.",
+          "info",
+          { durationMs: 14000 }
+        );
+      }, 6000);
       const out = await withTimeout(
         ctx.sdk.withdraw({
           recipient,
@@ -1586,6 +1648,8 @@ function initPrivacyUi() {
       showToast(normalizePrivacyError(err, "Privacy send"), "error", {
         durationMs: 7000,
       });
+    } finally {
+      if (sendWaitTimer) clearTimeout(sendWaitTimer);
     }
   });
 
@@ -2209,7 +2273,6 @@ async function executeStandardSend() {
 }
 
 async function init() {
-  installPrivacyRelayerFetchProxy();
   initTabs();
   initPrivacyUi();
 
@@ -2272,6 +2335,7 @@ async function init() {
   syncSendPageUi();
 }
 
+installPrivacyRelayerFetchProxy();
 init().catch((err) => {
   console.error("send page init failed", err);
 });

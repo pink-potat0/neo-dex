@@ -107,13 +107,13 @@ Add recipient
 <div class="space-y-2">
 <label for="privacy-amount-input" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Amount</label>
 <div class="flex flex-wrap items-end gap-2">
-<input id="privacy-amount-input" class="min-h-12 min-w-0 flex-1 border-4 border-black bg-white px-3 py-3 text-center text-xl font-bold outline-none focus:border-primary dark:bg-white dark:text-black sm:text-left" placeholder="0.00" type="text" inputmode="decimal" autocomplete="off"/>
+<input id="privacy-amount-input" class="min-h-12 min-w-0 flex-1 border-4 border-black bg-white px-3 py-3 text-center text-xl font-bold text-black outline-none focus:border-primary dark:border-zinc-600 dark:bg-zinc-900 dark:text-white dark:placeholder:text-outline-variant sm:text-left" placeholder="0.00" type="text" inputmode="decimal" autocomplete="off"/>
 <button type="button" data-privacy-max class="min-h-12 border-2 border-black bg-surface-container-low px-3 py-2 text-[10px] font-extrabold uppercase tracking-tight hover:bg-primary-container">Max</button>
 </div>
 </div>
 <div class="space-y-2">
 <label for="privacy-recipient-input" class="block text-xs font-bold uppercase tracking-widest text-on-surface-variant">Recipient</label>
-<input id="privacy-recipient-input" class="min-h-12 w-full border-4 border-black bg-white px-3 py-3 font-mono text-xs font-bold text-black outline-none focus:border-primary dark:bg-white dark:text-black sm:text-sm" placeholder="Recipient address" type="text" autocomplete="off"/>
+<input id="privacy-recipient-input" class="min-h-12 w-full border-4 border-black bg-white px-3 py-3 font-mono text-xs font-bold text-black outline-none focus:border-primary dark:border-zinc-600 dark:bg-zinc-900 dark:text-white dark:placeholder:text-outline-variant sm:text-sm" placeholder="Recipient address" type="text" autocomplete="off"/>
 </div>
 <p class="text-[10px] font-bold uppercase leading-relaxed text-outline">Approve the Privacy Cash message in your wallet if asked.</p>
 <button type="button" id="privacy-pool-submit" class="w-full border-4 border-black bg-secondary py-4 font-headline text-lg font-extrabold uppercase tracking-widest text-on-secondary neo-shadow transition-all hover:translate-x-px hover:translate-y-px hover:shadow-none active:translate-x-[3px] active:translate-y-[3px] active:shadow-none">Private send</button>
@@ -157,7 +157,7 @@ Add recipient
 <p id="privacy-topup-wallet-balance" class="font-mono text-lg font-bold">—</p>
 <div class="flex flex-wrap items-end gap-2">
 <label class="block w-full text-[10px] font-bold uppercase text-on-surface-variant" for="privacy-topup-amount">Amount</label>
-<input id="privacy-topup-amount" class="min-h-12 min-w-0 flex-1 border-4 border-black bg-white px-3 py-3 font-mono text-sm font-bold outline-none focus:border-primary" placeholder="0.00" type="text" inputmode="decimal" autocomplete="off"/>
+<input id="privacy-topup-amount" class="min-h-12 min-w-0 flex-1 border-4 border-black bg-white px-3 py-3 font-mono text-sm font-bold text-black outline-none focus:border-primary dark:border-zinc-600 dark:bg-zinc-900 dark:text-white dark:placeholder:text-outline-variant" placeholder="0.00" type="text" inputmode="decimal" autocomplete="off"/>
 <button type="button" id="privacy-topup-max" class="min-h-12 border-2 border-black bg-surface-container-low px-3 py-2 text-[10px] font-extrabold uppercase">Max</button>
 </div>
 <p class="flex items-center gap-1 text-[10px] font-bold uppercase text-on-surface-variant"><span id="privacy-topup-token-icon" class="material-symbols-outlined text-base">toll</span><span id="privacy-topup-token-symbol">SOL</span></p>
