@@ -62,11 +62,7 @@ const devProxy = {
   },
 };
 
-/**
- * Same defaults as privacycash@1.x `dist/utils/constants.js` (mainnet).
- * Vite must bake non-empty `process.env.NEXT_PUBLIC_*` into the SDK bundle — on some hosts
- * `process.env` reads are undefined at runtime, which breaks the pool. Override via VITE_PRIVACY_* in Vercel only if Privacy Cash changes chain constants.
- */
+/** privacycash mainnet defaults; `define` injects NEXT_PUBLIC_* for the SDK bundle. */
 const PRIVACY_DEFAULTS = {
   PROGRAM_ID: "9fhQBbumKEFuXtMBDw8AaQyAjCorLGJQiS3skWZdQyQD",
   ALT_ADDRESS: "HEN49U2ySJ85Vc78qprSW9y6mFDhs1NczRxyppNHjofe",

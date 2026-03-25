@@ -343,9 +343,6 @@ async function applyHalfMaxFrom(mode) {
   const amountIn = document.getElementById("swap-amount-in");
   if (!amountIn || !fromToken) return;
   const pk = getPublicKey();
-  // #region agent log
-  fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H3',location:'swap-main.js:255',message:'half-max click',data:{mode,hasPk:!!pk,fromMint:fromToken?.mint||'',fromSymbol:fromToken?.symbol||''},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   if (!pk) {
     showSwapToast("Connect wallet to use Half / Max", "error", {
       durationMs: 3500,
@@ -359,9 +356,6 @@ async function applyHalfMaxFrom(mode) {
       const map = await getWalletUiBalanceMap(conn, pk);
       return map.get(fromToken.mint) ?? 0;
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H3',location:'swap-main.js:268',message:'half-max balance resolved',data:{mode,balance:bal,decimals:fromToken?.decimals||0},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (!isFinite(bal) || bal <= 0) {
       showSwapToast("No balance for " + fromToken.symbol, "error", {
         durationMs: 3500,
@@ -379,16 +373,10 @@ async function applyHalfMaxFrom(mode) {
       return;
     }
     amountIn.value = formatAmountForInput(use, fromToken.decimals);
-    // #region agent log
-    fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H4',location:'swap-main.js:289',message:'half-max wrote amount input',data:{mode,useValue:use,written:amountIn.value},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     amountIn.dispatchEvent(new Event("input", { bubbles: true }));
     amountIn.dispatchEvent(new Event("change", { bubbles: true }));
     scheduleQuote();
   } catch (e) {
-    // #region agent log
-    fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H3',location:'swap-main.js:295',message:'half-max threw',data:{mode,error:String(e?.message||e||'unknown')},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (isRpcAccessError(e)) {
       invalidateRpcCache();
       invalidateWalletBalSnapshot();
@@ -1424,9 +1412,6 @@ async function updateModalTokenDisplay(query, modal, close) {
 
   try {
     const candidates = await buildModalCandidateTokens(query, myGen);
-    // #region agent log
-    fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H2',location:'swap-main.js:1314',message:'modal candidates built',data:{query,count:candidates?.length||0,hasWallet:!!getPublicKey()},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (myGen !== modalSearchGen) return;
 
     modalCandidateTokens = candidates;
@@ -1615,9 +1600,6 @@ async function init() {
       if (!Array.isArray(liveList) || !liveList.length) return;
       baseTokenList = liveList;
       rebuildTokenModalSearchIndex();
-      // #region agent log
-      fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H2',location:'swap-main.js:init:token-list-ready',message:'swap init token list loaded',data:{count:baseTokenList?.length||0,first:baseTokenList?.[0]?.symbol||''},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       fromToken = baseTokenList.find((t) => t.mint === fromToken?.mint) || fromToken;
       toToken = baseTokenList.find((t) => t.mint === toToken?.mint) || toToken;
       renderTokenButtons();

@@ -68,10 +68,13 @@ const PRIVACY_CIRCUIT_BASE = (() => {
   // large cross-origin GitHub downloads during the privacy proof flow.
   return new URL("../assets/privacycash/transaction2", import.meta.url).href;
 })();
-const PRIVACY_ACTION_TIMEOUT_MS = 120000;
+const PRIVACY_ACTION_TIMEOUT_MS = Number(
+  import.meta.env.VITE_PRIVACY_ACTION_TIMEOUT_MS || 600000
+);
 const PRIVACY_BALANCE_TIMEOUT_MS = 12000;
+/** Relayer base URL (align with VITE_PRIVACY_RELAYER_API_URL). */
 const PRIVACY_RELAYER_API_ORIGIN = String(
-  import.meta.env.VITE_PRIVACY_RELAYER_API_ORIGIN || "https://api3.privacycash.org"
+  import.meta.env.VITE_PRIVACY_RELAYER_API_URL || "https://api3.privacycash.org"
 )
   .trim()
   .replace(/\/+$/, "");
@@ -112,6 +115,8 @@ function installPrivacyRelayerFetchProxy() {
   const nativeFetch = window.fetch?.bind(window);
   if (typeof nativeFetch !== "function") return;
 
+  const crossOriginRelayer = "https://api3.privacycash.org";
+
   window.fetch = (input, init) => {
     let rawUrl = "";
     try {
@@ -119,10 +124,32 @@ function installPrivacyRelayerFetchProxy() {
       else if (input instanceof URL) rawUrl = input.toString();
       else if (input?.url) rawUrl = String(input.url);
 
-      if (rawUrl.startsWith(PRIVACY_RELAYER_API_ORIGIN)) {
-        const proxiedUrl =
-          PRIVACY_RELAYER_PROXY_PREFIX +
-          rawUrl.slice(PRIVACY_RELAYER_API_ORIGIN.length);
+      const u = new URL(rawUrl, window.location.href);
+      const origin = u.origin;
+      const pathAndQuery = u.pathname + u.search + u.hash;
+
+      // Same-origin relayer (optional VITE_PRIVACY_RELAYER_API_URL=https://your.site/__privacycash_api)
+      if (origin === window.location.origin && pathAndQuery.startsWith(PRIVACY_RELAYER_PROXY_PREFIX)) {
+        return nativeFetch(input, init);
+      }
+
+      // Browser cannot call api3 directly (CORS) — proxy via vercel.json / Vite dev server.
+      if (origin === new URL(crossOriginRelayer).origin) {
+        const proxiedUrl = PRIVACY_RELAYER_PROXY_PREFIX + pathAndQuery;
+        if (input instanceof Request) {
+          return nativeFetch(new Request(proxiedUrl, input), init);
+        }
+        return nativeFetch(proxiedUrl, init);
+      }
+
+      // Custom relayer URL → same-origin proxy when cross-origin.
+      if (
+        PRIVACY_RELAYER_API_ORIGIN &&
+        PRIVACY_RELAYER_API_ORIGIN !== crossOriginRelayer &&
+        rawUrl.startsWith(PRIVACY_RELAYER_API_ORIGIN)
+      ) {
+        const rest = rawUrl.slice(PRIVACY_RELAYER_API_ORIGIN.length);
+        const proxiedUrl = PRIVACY_RELAYER_PROXY_PREFIX + (rest.startsWith("/") ? rest : "/" + rest);
         if (input instanceof Request) {
           return nativeFetch(new Request(proxiedUrl, input), init);
         }
@@ -355,9 +382,6 @@ function getCachedPrivacySignature(owner) {
   const key = privacySigStorageKey(owner.toBase58());
   try {
     const cached = localStorage.getItem(key);
-    // #region agent log
-    fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'29e7ee'},body:JSON.stringify({sessionId:'29e7ee',runId:'pre-fix',hypothesisId:'H1',location:'send-main.js:getCachedPrivacySignature',message:'privacy signature cache read',data:{wallet:owner.toBase58(),hasCached:!!cached,cachedLen:cached?cached.length:0},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (cached) return base64ToBytes(cached);
   } catch {
     /* ignore */
@@ -432,14 +456,8 @@ async function getPrivacySignedSignature(owner, provider) {
   if (!sigBytes?.length) {
     throw new Error("Wallet returned an empty signature");
   }
-  // #region agent log
-  fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'29e7ee'},body:JSON.stringify({sessionId:'29e7ee',runId:'pre-fix',hypothesisId:'H1',location:'send-main.js:getPrivacySignedSignature',message:'privacy signature obtained from wallet',data:{wallet:owner.toBase58(),sigByteLen:sigBytes.length},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   try {
     localStorage.setItem(key, bytesToBase64(sigBytes));
-    // #region agent log
-    fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'29e7ee'},body:JSON.stringify({sessionId:'29e7ee',runId:'pre-fix',hypothesisId:'H1',location:'send-main.js:getPrivacySignedSignature',message:'privacy signature cached',data:{wallet:owner.toBase58(),storageKey:key},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   } catch {
     /* ignore */
   }
@@ -682,9 +700,6 @@ async function refreshPrivacyPoolBalance({
   timeoutMs = PRIVACY_BALANCE_TIMEOUT_MS,
 } = {}) {
   const owner = getPublicKey();
-  // #region agent log
-  fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'29e7ee'},body:JSON.stringify({sessionId:'29e7ee',runId:'pre-fix',hypothesisId:'H2',location:'send-main.js:refreshPrivacyPoolBalance',message:'refresh privacy balance start',data:{hasOwner:!!owner,allowPromptSignature,timeoutMs,lastKnownLamports:privacyLastKnownLamports},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   if (!owner) {
     if (privacyLastKnownLamports == null) setPrivacyBalanceDisplay("0.000000000");
     return null;
@@ -730,15 +745,9 @@ async function refreshPrivacyPoolBalance({
     clearTimeout(cancel);
     const bal = ctx.sdk.getBalanceFromUtxos(utxos);
     const lamports = Number(bal?.lamports || 0);
-    // #region agent log
-    fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'29e7ee'},body:JSON.stringify({sessionId:'29e7ee',runId:'pre-fix',hypothesisId:'H2',location:'send-main.js:refreshPrivacyPoolBalance',message:'refresh privacy balance success',data:{wallet:owner.toBase58(),isInitialFullScan,utxoCount:Array.isArray(utxos)?utxos.length:-1,lamports},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     setPrivacyBalanceLamports(lamports);
     return lamports;
   } catch {
-    // #region agent log
-    fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'29e7ee'},body:JSON.stringify({sessionId:'29e7ee',runId:'pre-fix',hypothesisId:'H2',location:'send-main.js:refreshPrivacyPoolBalance',message:'refresh privacy balance failed',data:{wallet:owner?owner.toBase58():'',hadLastKnown:Number.isFinite(privacyLastKnownLamports)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (privacyLastKnownLamports == null) {
       setPrivacyBalanceDisplay("0.000000000");
     }
@@ -1443,11 +1452,9 @@ function initPrivacyUi() {
     try {
       const ctx = await buildPrivacyActionContext("top up");
       closeTopupModal();
-      showToast("Submitting deposit to Privacy Cash...", "info", {
-        noAutoDismiss: true,
-      });
+      showToast("Processing deposit…", "info", { noAutoDismiss: true });
       walletHintTimer = setTimeout(() => {
-        showToast("Open your wallet and confirm the top-up transaction", "info", {
+        showToast("Check your wallet for a signature request", "info", {
           durationMs: 7000,
         });
       }, 7000);
@@ -1489,9 +1496,6 @@ function initPrivacyUi() {
         mint: SOL_MINT,
         sendKind: "privacy_deposit",
       });
-      // #region agent log
-      fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'29e7ee'},body:JSON.stringify({sessionId:'29e7ee',runId:'pre-fix',hypothesisId:'H3',location:'send-main.js:privacyDeposit',message:'privacy deposit recorded to activity',data:{wallet:ctx.owner.toBase58(),tx:out.tx,amountUi:ui},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       void pollPrivacyBalanceAfterDeposit(Number(lamports));
     } catch (err) {
       hideToast();
@@ -1544,9 +1548,7 @@ function initPrivacyUi() {
     }
     try {
       const ctx = await buildPrivacyActionContext("private send");
-      showToast("Submitting Privacy Cash withdrawal...", "info", {
-        noAutoDismiss: true,
-      });
+      showToast("Processing withdrawal…", "info", { noAutoDismiss: true });
       const out = await withTimeout(
         ctx.sdk.withdraw({
           recipient,
@@ -1577,9 +1579,6 @@ function initPrivacyUi() {
         mint: SOL_MINT,
         sendKind: "privacy_shielded_send",
       });
-      // #region agent log
-      fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'29e7ee'},body:JSON.stringify({sessionId:'29e7ee',runId:'pre-fix',hypothesisId:'H3',location:'send-main.js:privacyShieldedSend',message:'privacy shielded send recorded to activity',data:{wallet:ctx.owner.toBase58(),tx:out.tx,amountUi:ui},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       if (input) input.value = "";
       void refreshPrivacyPoolBalance();
     } catch (err) {

@@ -1,21 +1,11 @@
-/**
- * Jupiter swap quote + transaction build. Tries v6 then Metis v1.
- *
- * jup.ag/swap uses the same public Jupiter Swap API (see https://docs.jup.ag/ ),
- * not a different engine. Their UI succeeds more often in browsers because calls
- * are same-origin or keyed; we can mirror that with Vite proxy (dev) or your
- * own reverse proxy (prod) via VITE_JUPITER_SAME_ORIGIN=true.
- */
+/** Jupiter quote + swap build (v6 then Metis). Proxy in dev / when VITE_JUPITER_SAME_ORIGIN=true. */
 function useSameOriginJupiterProxy() {
   if (import.meta.env.VITE_JUPITER_SAME_ORIGIN === "true") return true;
   if (import.meta.env.VITE_JUPITER_SAME_ORIGIN === "false") return false;
   return Boolean(import.meta.env.DEV);
 }
 
-/**
- * Metis (`api.jup.ag/swap/v1/*`) requires `x-api-key` — see https://dev.jup.ag/docs/swap-api/get-quote
- * Calling it without a key always yields 401 and confuses users when v6 fails first.
- */
+/** Metis endpoints need x-api-key when used. */
 function jupiterEndpointPairs(queryString, hasApiKey) {
   const lite = useSameOriginJupiterProxy()
     ? {
@@ -88,9 +78,6 @@ export async function fetchSwapQuote(queryString, signal) {
 
   let lastErr = null;
   for (const ep of endpoints) {
-    // #region agent log
-    fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H4',location:'jupiter-swap.js:fetchSwapQuote:attempt',message:'jupiter quote attempt',data:{kind:ep.kind,quoteUrl:ep.quoteUrl.slice(0,120)},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     try {
       const res = await fetch(ep.quoteUrl, {
         method: "GET",
@@ -99,9 +86,6 @@ export async function fetchSwapQuote(queryString, signal) {
       });
       if (!res.ok) {
         const t = await res.text().catch(() => "");
-        // #region agent log
-        fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H4',location:'jupiter-swap.js:fetchSwapQuote:http-fail',message:'jupiter quote http failure',data:{kind:ep.kind,status:res.status,body:String(t).slice(0,160)},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         lastErr = new Error(formatJupiterErrorBody(res.status, t));
         continue;
       }

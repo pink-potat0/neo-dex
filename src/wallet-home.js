@@ -435,9 +435,6 @@ function renderActivity(walletPk) {
   }
   const rows = getSiteActivityForWallet(base58);
   const stats = getSiteActivityStatsForWallet(base58);
-  // #region agent log
-  fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'29e7ee'},body:JSON.stringify({sessionId:'29e7ee',runId:'pre-fix',hypothesisId:'H4',location:'wallet-home.js:renderActivity',message:'render activity start',data:{wallet:base58,rowCount:rows.length,showAll:activityShowAll},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   log.innerHTML = "";
   if (statsEl) {
     const cells = [
@@ -472,9 +469,6 @@ function renderActivity(walletPk) {
   log.style.overscrollBehavior = "contain";
 
   const visibleRows = activityShowAll ? rows : rows.slice(0, 5);
-  // #region agent log
-  fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'29e7ee'},body:JSON.stringify({sessionId:'29e7ee',runId:'pre-fix',hypothesisId:'H4',location:'wallet-home.js:renderActivity',message:'activity pagination decision',data:{wallet:base58,visibleCount:visibleRows.length,totalCount:rows.length,hasViewAll:rows.length>5},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   visibleRows.forEach((e, i) => {
     const wrap = document.createElement("div");
     wrap.className =
@@ -624,9 +618,6 @@ async function refreshDashboardOnce() {
   const tokenEmpty = document.getElementById("home-token-empty");
   const solscan = document.getElementById("home-solscan-link");
   const pk = getPublicKey();
-  // #region agent log
-  fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H1',location:'wallet-home.js:refreshDashboardOnce:start',message:'dashboard refresh start',data:{hasPk:!!pk,wallet:pk?pk.toBase58():'',refreshId:runId},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
 
   renderActivity(pk);
 
@@ -683,9 +674,6 @@ async function refreshDashboardOnce() {
     );
     if (runId !== dashboardRefreshId) return;
     const { rows: initialRows, solTotal } = buildInitialDashboardRows(balancePack);
-    // #region agent log
-    fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H1',location:'wallet-home.js:refreshDashboardOnce:balance-success',message:'wallet balances resolved',data:{wallet:pk?pk.toBase58():'',toShowCount:initialRows.length,solTotal},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
 
     const toShow = [...initialRows]; if (false) {
 
@@ -758,9 +746,6 @@ async function refreshDashboardOnce() {
           t.balance > 0 &&
           rowShowsNonZeroHoldings(t.balance, t.meta.decimals)
       ); }
-      // #region agent log
-      fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H1',location:'wallet-home.js:refreshDashboardOnce:rows-built',message:'token rows computed',data:{wallet:pk?pk.toBase58():'',toShowCount:toShow.length,solTotal},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
 
       setText("home-primary-balance", fmtAmount(solTotal, 6) + " SOL");
       setLoadingPulse("home-primary-balance", false);
@@ -920,9 +905,6 @@ async function refreshDashboardOnce() {
       }
 
   } catch (e) {
-    // #region agent log
-    fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H1',location:'wallet-home.js:refreshDashboardOnce:catch',message:'dashboard refresh failed',data:{wallet:pk?pk.toBase58():'',error:String(e?.message||e||'')},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     if (runId !== dashboardRefreshId) return;
     if (isRpcAccessError(e)) invalidateRpcCache();
     const hadCached = cached ? renderSnapshot(cached) : false;

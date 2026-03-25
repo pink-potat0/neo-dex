@@ -152,29 +152,17 @@ export async function fetchJupiterTokenList() {
       const { url, init } = endpoint;
       try {
         const res = await fetch(url, init);
-        // #region agent log
-        fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H1',location:'jupiter-tokens.js:token-list:response',message:'token list endpoint response',data:{url,status:res.status,ok:res.ok},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         if (!res.ok) continue;
         const data = await res.json();
         const list = normalizeList(data);
-        // #region agent log
-        fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H1',location:'jupiter-tokens.js:token-list:normalized',message:'token list normalized',data:{url,count:list.length},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         if (list.length > 0) {
           cached = list;
           return cached;
         }
       } catch (_) {
-        // #region agent log
-        fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H1',location:'jupiter-tokens.js:token-list:throw',message:'token list endpoint threw',data:{url},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
       }
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7266/ingest/8f27976a-4ceb-42a9-90ca-4f04f3c39944',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'00c163'},body:JSON.stringify({sessionId:'00c163',runId:'pre-fix',hypothesisId:'H1',location:'jupiter-tokens.js:token-list:fallback',message:'token list fallback used',data:{fallbackCount:FALLBACK.length},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     cached = fallbackTokenList();
     return cached;
   })();
