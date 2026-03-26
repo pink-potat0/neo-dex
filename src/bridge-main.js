@@ -1,3 +1,4 @@
+import "./analytics.js";
 import { bindDecimalInput } from "./lib/input-decimal.js";
 import { Buffer } from "buffer";
 import {

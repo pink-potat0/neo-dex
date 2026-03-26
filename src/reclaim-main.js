@@ -1,3 +1,4 @@
+import "./analytics.js";
 import {
   LAMPORTS_PER_SOL,
   PublicKey,

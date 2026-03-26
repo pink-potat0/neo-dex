@@ -2,6 +2,8 @@ import { Buffer } from "buffer";
 
 window.Buffer = Buffer;
 
+import "./analytics.js";
+
 import {
   LAMPORTS_PER_SOL,
   PublicKey,
@@ -110,39 +112,49 @@ let privacyAutoSignWallet = "";
 let privacySessionPromptShownForWallet = "";
 let privacyRelayerProxyInstalled = false;
 
-/**
- * Merkle endpoints can 404 briefly while the indexer catches up after a deposit.
- * Retries transient failures so withdraw/send is more reliable.
- */
-async function fetchWithMerkleRetry(nativeFetch, input, init) {
-  let urlStr = "";
+function fetchInputToUrlString(input) {
   try {
-    if (typeof input === "string") urlStr = input;
-    else if (input instanceof URL) urlStr = input.toString();
-    else if (input?.url) urlStr = String(input.url);
+    if (typeof input === "string") return input;
+    if (input instanceof URL) return input.toString();
+    if (input instanceof Request) return input.url;
+    if (input?.url) return String(input.url);
   } catch {
     /* ignore */
   }
+  return "";
+}
+
+/**
+ * Merkle endpoints can 404 for minutes while the indexer catches up after a deposit.
+ * Retries with backoff; uses URL string so each attempt is a fresh GET.
+ */
+async function fetchWithMerkleRetry(nativeFetch, input, init) {
+  const urlStr = fetchInputToUrlString(input);
+  if (!urlStr) return nativeFetch(input, init);
   let abs = urlStr;
   try {
-    abs = new URL(urlStr, typeof window !== "undefined" ? window.location.href : "http://localhost").href;
+    abs = new URL(
+      urlStr,
+      typeof window !== "undefined" ? window.location.href : "http://localhost"
+    ).href;
   } catch {
-    /* ignore */
+    return nativeFetch(input, init);
   }
   const isMerkle =
     abs.includes("/merkle/proofv2") || abs.includes("/merkle/root");
   if (!isMerkle) return nativeFetch(input, init);
 
-  const max = 6;
+  const max = 24;
   for (let attempt = 0; attempt < max; attempt++) {
-    const res = await nativeFetch(input, init);
+    const res = await nativeFetch(urlStr, init);
     if (res.ok) return res;
     const retryable =
       res.status === 404 ||
       res.status === 429 ||
       (res.status >= 500 && res.status <= 599);
     if (retryable && attempt < max - 1) {
-      await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+      const delayMs = Math.min(35000, 3500 + attempt * 2500);
+      await new Promise((r) => setTimeout(r, delayMs));
       continue;
     }
     return res;
@@ -245,8 +257,12 @@ function showToast(message, variant = "info", opts = {}) {
   if (!host) return;
   hideToast();
   const wrap = document.createElement("div");
+  const sentence = opts.sentenceCase === true;
   wrap.className =
-    "pointer-events-auto border-4 border-black px-5 py-4 text-sm font-extrabold uppercase leading-snug tracking-tight shadow-[6px_6px_0_0_#000] " +
+    "pointer-events-auto border-4 border-black px-5 py-4 text-sm leading-snug shadow-[6px_6px_0_0_#000] " +
+    (sentence
+      ? "normal-case font-semibold tracking-normal "
+      : "font-extrabold uppercase tracking-tight ") +
     (variant === "success"
       ? "bg-primary-container text-black"
       : variant === "error"
@@ -339,6 +355,11 @@ function setSendStatus(message, isError = false) {
     (isError ? "text-error" : "text-on-surface-variant");
 }
 
+function isPrivacyMerkleLagError(err) {
+  const raw = String(err?.message || err || "");
+  return /merkle proof|merkle\/proofv2|failed to fetch merkle/i.test(raw);
+}
+
 function normalizePrivacyError(err, actionLabel) {
   const raw = String(err?.message || err || "");
   if (/wallet.*sendtransaction|user rejected|rejected/i.test(raw)) {
@@ -355,8 +376,7 @@ function normalizePrivacyError(err, actionLabel) {
   }
   if (/merkle proof|merkle\/proofv2|failed to fetch merkle/i.test(raw)) {
     return (
-      "Indexer has no Merkle proof for your notes yet (common right after a deposit). " +
-      "Wait 1–2 minutes and try again."
+      "Still syncing your shielded balance. Wait about a minute after a deposit, then try Private send again."
     );
   }
   if (/ASSERT FAILED|ERROR IN TEMPLATE|TRANSACTION_\d+/i.test(raw)) {
@@ -1553,9 +1573,12 @@ function initPrivacyUi() {
     } catch (err) {
       hideToast();
       invalidatePrivacyContextCache();
-      showToast(normalizePrivacyError(err, "Privacy deposit"), "error", {
-        durationMs: 7000,
-      });
+      const msg = normalizePrivacyError(err, "Privacy deposit");
+      if (isPrivacyMerkleLagError(err)) {
+        showToast(msg, "info", { sentenceCase: true, durationMs: 14000 });
+      } else {
+        showToast(msg, "error", { durationMs: 7000 });
+      }
     } finally {
       if (walletHintTimer) clearTimeout(walletHintTimer);
       if (depositWaitTimer) clearTimeout(depositWaitTimer);
@@ -1645,9 +1668,12 @@ function initPrivacyUi() {
       void refreshPrivacyPoolBalance();
     } catch (err) {
       hideToast();
-      showToast(normalizePrivacyError(err, "Privacy send"), "error", {
-        durationMs: 7000,
-      });
+      const msg = normalizePrivacyError(err, "Privacy send");
+      if (isPrivacyMerkleLagError(err)) {
+        showToast(msg, "info", { sentenceCase: true, durationMs: 14000 });
+      } else {
+        showToast(msg, "error", { durationMs: 7000 });
+      }
     } finally {
       if (sendWaitTimer) clearTimeout(sendWaitTimer);
     }

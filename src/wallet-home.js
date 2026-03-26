@@ -2,6 +2,8 @@ import { Buffer } from "buffer";
 
 window.Buffer = Buffer;
 
+import "./analytics.js";
+
 import { getWalletBalanceSnapshot } from "./lib/wallet-balances.js";
 import { withRpcRetry, isRpcAccessError, invalidateRpcCache } from "./lib/solana-rpc.js";
 import {
