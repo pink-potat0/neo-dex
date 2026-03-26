@@ -511,12 +511,6 @@ function renderActivity(walletPk) {
           : Math.max(1, addrs.length);
       const perAmt = parseActivityAmountHuman(e.amountHuman);
       const amtStr = fmtActivityAmt(perAmt);
-      if (e.sendKind === "privacy_deposit") {
-        line.textContent = "Deposited " + amtStr + " " + symLabel + " to Privacy Pool";
-      } else if (e.sendKind === "privacy_shielded_send") {
-        line.textContent = "Shielded transfer of " + amtStr + " " + symLabel + " sent";
-      } else
-
       if (count <= 1) {
         const to = addrs[0] ? shortAddr(addrs[0]) : "—";
         line.textContent =

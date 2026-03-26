@@ -1,6 +1,5 @@
 {
   "rewrites": [
-    { "source": "/__privacycash_api/:path*", "destination": "https://api3.privacycash.org/:path*" },
     { "source": "/portfolio", "destination": "/pages/portfolio.html" },
     { "source": "/swap", "destination": "/pages/swap.html" },
     { "source": "/send", "destination": "/pages/send.html" },
