@@ -1,3 +1,7 @@
 import { inject } from "@vercel/analytics";
 
-inject();
+try {
+  inject();
+} catch (e) {
+  console.warn("[analytics]", e);
+}

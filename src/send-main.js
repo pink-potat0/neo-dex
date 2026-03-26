@@ -144,9 +144,13 @@ async function fetchWithMerkleRetry(nativeFetch, input, init) {
     abs.includes("/merkle/proofv2") || abs.includes("/merkle/root");
   if (!isMerkle) return nativeFetch(input, init);
 
+  const merkleInit =
+    init && typeof init === "object"
+      ? { ...init, cache: "no-store" }
+      : { cache: "no-store" };
   const max = 24;
   for (let attempt = 0; attempt < max; attempt++) {
-    const res = await nativeFetch(urlStr, init);
+    const res = await nativeFetch(urlStr, merkleInit);
     if (res.ok) return res;
     const retryable =
       res.status === 404 ||
@@ -182,8 +186,27 @@ function installPrivacyRelayerFetchProxy() {
       const origin = u.origin;
       const pathAndQuery = u.pathname + u.search + u.hash;
 
-      if (origin === window.location.origin && pathAndQuery.startsWith(PRIVACY_RELAYER_PROXY_PREFIX)) {
+      const win = typeof window !== "undefined" ? window : null;
+      const sameOrigin = win && origin === win.location.origin;
+      /** SDK built with empty relayer URL uses /merkle, /config, /withdraw on site origin — rewrite to proxy. */
+      const bareRelayerPath =
+        pathAndQuery.startsWith("/merkle/") ||
+        pathAndQuery.startsWith("/withdraw") ||
+        pathAndQuery.startsWith("/config") ||
+        pathAndQuery === "/config";
+      if (sameOrigin && pathAndQuery.startsWith(PRIVACY_RELAYER_PROXY_PREFIX)) {
         return fetchWithMerkleRetry(nativeFetch, input, init);
+      }
+      if (sameOrigin && bareRelayerPath) {
+        const proxiedUrl = PRIVACY_RELAYER_PROXY_PREFIX + pathAndQuery;
+        if (input instanceof Request) {
+          return fetchWithMerkleRetry(
+            nativeFetch,
+            new Request(proxiedUrl, input),
+            init
+          );
+        }
+        return fetchWithMerkleRetry(nativeFetch, proxiedUrl, init);
       }
 
       if (origin === new URL(crossOriginRelayer).origin) {

@@ -81,13 +81,15 @@ function privacyEnvDefines(env) {
     String(env[k] ?? def ?? "")
       .trim()
       .replace(/\/+$/, "");
+  /** Empty env would bake "" into the SDK and break fetch URLs — fall back to default. */
+  const relayerUrl =
+    String(env.VITE_PRIVACY_RELAYER_API_URL ?? "")
+      .trim()
+      .replace(/\/+$/, "") || PRIVACY_DEFAULTS.RELAYER_API_URL;
   const mappings = {
     NEXT_PUBLIC_PROGRAM_ID: pick("VITE_PRIVACY_PROGRAM_ID", PRIVACY_DEFAULTS.PROGRAM_ID),
     NEXT_PUBLIC_ALT_ADDRESS: pick("VITE_PRIVACY_ALT_ADDRESS", PRIVACY_DEFAULTS.ALT_ADDRESS),
-    NEXT_PUBLIC_RELAYER_API_URL: pick(
-      "VITE_PRIVACY_RELAYER_API_URL",
-      PRIVACY_DEFAULTS.RELAYER_API_URL
-    ),
+    NEXT_PUBLIC_RELAYER_API_URL: relayerUrl,
     NEXT_PUBLIC_USDC_MINT: pick("VITE_PRIVACY_USDC_MINT", PRIVACY_DEFAULTS.USDC_MINT),
     NEXT_PUBLIC_USDT_MINT: pick("VITE_PRIVACY_USDT_MINT", PRIVACY_DEFAULTS.USDT_MINT),
     NEXT_PUBLIC_ZEC_MINT: pick("VITE_PRIVACY_ZEC_MINT", PRIVACY_DEFAULTS.ZEC_MINT),
