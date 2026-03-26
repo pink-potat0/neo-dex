@@ -26,6 +26,14 @@ function getPhantomProvider() {
   return null;
 }
 
+function getJupiterLegacyProvider() {
+  const j = window.jupiter?.solana || window.jupiter;
+  if (j?.isJupiter) return j;
+  const s = window.solana;
+  if (s?.isJupiter) return s;
+  return null;
+}
+
 const LEGACY_ADAPTERS = [
   {
     id: "phantom",
@@ -44,6 +52,11 @@ const LEGACY_ADAPTERS = [
       window.backpack?.isBackpack
         ? window.backpack
         : window.backpack?.solana || null,
+  },
+  {
+    id: "jupiter",
+    name: "Jupiter Wallet",
+    get: getJupiterLegacyProvider,
   },
 ];
 
@@ -235,16 +248,9 @@ function supportsStandardWallet(wallet) {
   if (!wallet.features["standard:connect"]?.connect) return false;
   if (!wallet.features["standard:disconnect"]?.disconnect) return false;
   if (!wallet.features["solana:signTransaction"]?.signTransaction) return false;
-  const hasWalletChain =
-    Array.isArray(wallet.chains) && wallet.chains.some(isSolanaChain);
-  const hasAccountChain =
-    Array.isArray(wallet.accounts) &&
-    wallet.accounts.some((account) =>
-      Array.isArray(account?.chains)
-        ? account.chains.some(isSolanaChain)
-        : Boolean(account?.address || account?.publicKey)
-    );
-  return hasWalletChain || hasAccountChain;
+  // Extensions (e.g. Jupiter Wallet) often register before the user has
+  // connected, so chains/accounts may be empty until connect() returns.
+  return true;
 }
 
 function registerStandardWallet(wallet) {
@@ -253,18 +259,26 @@ function registerStandardWallet(wallet) {
   standardWalletRegistry.set(key, wallet);
 }
 
+/**
+ * Wallet Standard apps must expose this API on wallet-standard:app-ready.
+ * Wallets call detail.register(myWallet) — not a bare register function.
+ */
+const walletStandardAppApi = Object.freeze({
+  register(...wallets) {
+    for (const w of wallets) {
+      registerStandardWallet(w);
+    }
+  },
+});
+
 function handleWalletStandardDetail(detail) {
   if (!detail) return;
   if (typeof detail === "function") {
     try {
-      detail(registerStandardWallet);
-    } catch (_) {}
-    return;
-  }
-  if (typeof detail.register === "function") {
-    try {
-      detail.register(registerStandardWallet);
-    } catch (_) {}
+      detail(walletStandardAppApi);
+    } catch (_) {
+      /* ignore */
+    }
     return;
   }
   if (Array.isArray(detail.wallets)) {
@@ -278,6 +292,18 @@ function handleWalletStandardDetail(detail) {
   registerStandardWallet(detail.wallet || detail);
 }
 
+function dispatchWalletStandardAppReady() {
+  try {
+    window.dispatchEvent(
+      new CustomEvent(WALLET_STANDARD_APP_READY_EVENT, {
+        detail: walletStandardAppApi,
+      })
+    );
+  } catch (_) {
+    /* ignore */
+  }
+}
+
 function ensureWalletStandardDiscovery() {
   if (walletStandardBootstrapped || typeof window === "undefined") return;
   walletStandardBootstrapped = true;
@@ -286,15 +312,10 @@ function ensureWalletStandardDiscovery() {
     handleWalletStandardDetail(event?.detail);
   });
 
-  try {
-    window.dispatchEvent(
-      new CustomEvent(WALLET_STANDARD_APP_READY_EVENT, {
-        detail: registerStandardWallet,
-      })
-    );
-  } catch (_) {
-    /* ignore */
-  }
+  dispatchWalletStandardAppReady();
+  queueMicrotask(dispatchWalletStandardAppReady);
+  setTimeout(dispatchWalletStandardAppReady, 0);
+  setTimeout(dispatchWalletStandardAppReady, 120);
 }
 
 function createEmitter() {
@@ -341,7 +362,13 @@ function createWalletStandardAdapter(wallet) {
       const result = options?.onlyIfTrusted
         ? await connectFeature.connect({ silent: true })
         : await connectFeature.connect();
-      account = pickStandardAccount(wallet, result?.accounts || wallet.accounts);
+      const mergedAccounts =
+        result?.accounts?.length > 0
+          ? result.accounts
+          : Array.isArray(wallet.accounts) && wallet.accounts.length > 0
+            ? wallet.accounts
+            : result?.accounts || wallet.accounts;
+      account = pickStandardAccount(wallet, mergedAccounts);
       const nextPk = getStandardAccountPublicKey(account);
       if (!nextPk) {
         throw new Error((wallet.name || "Wallet") + " did not expose a Solana account");
@@ -517,6 +544,7 @@ function detectAdapterId(adapter) {
   if (adapter.__neoDexAdapterId) return adapter.__neoDexAdapterId;
   if (adapter?.isSolflare) return "solflare";
   if (adapter?.isPhantom) return "phantom";
+  if (adapter?.isJupiter) return "jupiter";
   if (adapter?.isBackpack || window.backpack?.solana === adapter) {
     return "backpack";
   }
